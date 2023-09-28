@@ -80,7 +80,7 @@ class UserController extends Controller
 
 
 
-    public function updateSignature(Request $request)
+    public function add_signature(Request $request)
     {
         $signature = $request->file('signature');
         $user = Auth::user();
@@ -89,6 +89,7 @@ class UserController extends Controller
 
         if (!$signature || !$id) {
             return response()->json([
+                'success' => 'false',
                 'error' => 'input(s) is missing',
             ], 400);
         }
@@ -103,34 +104,35 @@ class UserController extends Controller
             ]);
 
         return response()->json([
+            'success' => 'true',
             'message' => 'signature Updated',
             'signature' => $signature,
         ]);
-        }
+    }
 
 
 
     
-    public function show_businessName_phoneNumber(Request $request)
-     {
-            $condition = null;
-            $FieldList = 'id,business_name,phone_number';
+    public function businessname_phonenumber(Request $request)
+    {
+        $condition = null;
+        $FieldList = 'id,business_name,phone_number';
 
-            if ($request->has('id')) {
-                $condition = " where id='{$request->id}'";
-            }
+        if ($request->has('id')) {
+            $condition = " where id='{$request->id}'";
+        }
 
-            $sql = "select $FieldList from users $condition";
-            $users = DB::select($sql);
+        $sql = "select $FieldList from users $condition";
+        $users = DB::select($sql);
 
-            $response = [
-                'total' => count($users),
-                'data' => $users,
-            ];
+        $response = [
+            'success' => 'true',
+            'total' => count($users),
+            'data' => $users,
+        ];
 
-            return response()->json($response);
-     }
-
+        return response()->json($response);
+    }
    
     public function check_username_register_or_not(Request $request)
     {
@@ -142,31 +144,51 @@ class UserController extends Controller
             $fieldList = '*';
         }
 
-        $sql = "select $FieldList from users $condition";
+        try {
+            $sql = "select $FieldList from users $condition";
+            $users = DB::select($sql);
 
-
-        return response()->json([
-            'total' => count($users),
-            'data' => $users,
-        ]);
+            return response()->json([
+                'success' => true,
+                'total' => count($users),
+                'data' => $users,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function fetch_user_name(Request $request)
     {
-        $user_name = $request->input('user_name');
+        try {
+            $user_name = $request->input('user_name');
 
-        if (!empty($user_name)) {
-            $users = DB::select("SELECT id, user_name, business_name, phone_number, gst_number, your_name, name, business_logo, signature, state, address, created_at, updated_at FROM users WHERE user_name = ?", [$user_name]);
-        } else {
-            $users = DB::select("SELECT id, user_name, business_name, phone_number, gst_number, your_name, name, business_logo, signature, state, address, created_at, updated_at FROM users");
+            if (!empty($user_name)) {
+                $users = DB::select("SELECT id, user_name, business_name, phone_number, gst_number, your_name, name, business_logo, signature, state, address, created_at, updated_at FROM users WHERE user_name = ?", [$user_name]);
+            } else {
+                $users = DB::select("SELECT id, user_name, business_name, phone_number, gst_number, your_name, name, business_logo, signature, state, address, created_at, updated_at FROM users");
+            }
+
+            $response = [
+                'success' => true,
+                'total' => count($users),
+                'data' => $users,
+
+            ];
+
+            return response()->json($response);
+        } catch (Exception $e) {
+            $response = [
+                'success' => false,
+                'error' => $e->getMessage(),
+
+            ];
+
+            return response()->json($response, 500);
         }
-
-        $response = [
-            'total' => count($users),
-            'data' => $users
-        ];
-
-        return response()->json($response);
     }
 
     public function fetch_user_password(Request $request)
@@ -179,9 +201,18 @@ class UserController extends Controller
         }
 
         $sql = "select $FieldList from users $condition";
-        $result = DB::select($sql);
+
+        try {
+            $result = DB::select($sql);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
 
         $response = [
+            'success' => true,
             'total' => count($result),
             'data' => $result
         ];
@@ -204,6 +235,7 @@ class UserController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
+                'success' => false,
                 'error' => $validator->errors(),
             ], 400);
         }
@@ -222,6 +254,7 @@ class UserController extends Controller
             ->first();
         unset($user->password);
         return response()->json([
+            'success' => true,
             'message' => 'updated successfully',
             'user' => $user,
         ]);

@@ -11,83 +11,145 @@ use Illuminate\Validation\ValidationException;
 class InvoiceController extends Controller
 {
 
-    public function createInvoice(Request $request){
+    public function createInvoice(Request $request)
+    {
+        $rules = [
+            'customer_name' => 'required|string|max:255',
+            'phone_number' => 'required|string|max:255',
+            'gst_number' => 'required|string|max:255',
+            'state' => 'required|string|max:255',
+            'billing_address' => 'required|string|max:255',
+            'sub_total' => 'required|numeric',
+            'additional_charge_name' => 'required|string|max:255',
+            'additional_charge' => 'required|numeric',
+            'discount_percentage' => 'required|numeric',
+            'discount' => 'required|numeric',
+            'round_off' => 'required|numeric',
+            'total_amount' => 'required|numeric',
+            'cash_receive' => 'required|numeric',
+            'balance_amount' => 'required|numeric',
+            'total_item' => 'required|integer',
+            'due_date' => 'required|date',
+            'invoice_date' => 'required|date',
+            'item_id' => 'required|integer',
+            'summary_date' => 'required|date',
+        ];
 
+        $validator = Validator::make($request->all(), $rules);
 
-        // Validate the request input.
-        $request->validate([
-            'user_id' => 'required',
-            'item_id' => 'required',
-            'customer_name' => 'required',
-            'phone_number' => 'required',
-            'gst_number' => 'required',
-            'state' => 'required',
-            'billing_address' => 'required',
-            'sub_total' => 'required',
-            'additional_charge_name' => 'required',
-            'additional_charge' => 'required',
-            'discount_percentage' => 'required',
-            'discount' => 'required',
-            'round_off' => 'required',
-            'total_amount' => 'required',
-            'cash_receive' => 'required',
-            'balance_amount' => 'required',
-            'total_item' => 'required',
-            'due_date' => 'required',
-            'invoice_date' => 'required',
-            'item_id' => 'required',
-            'summary_date' => 'required',
-        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => $validator->errors()
+            ]);
+        }
 
-        // Insert a new invoice record into the database.
-        $sql = "insert into invoice (user_id,item_id,customer_name,phone_number,gst_number,state,billing_address,sub_total,additional_charge_name,additional_charge,discount_percentage,discount,round_off,total_amount,cash_receive,balance_amount,total_item,due_date,invoice_date,item_id,summary_date) values ('$user_id','$customer_name','$phone_number','$gst_number','$state','$billing_address','$sub_total','$additional_charge_name','$additional_charge','$discount_percentage','$discount','$round_off','$total_amount','$cash_receive','$balance_amount','$total_item','$due_date','$invoice_date','$item_id','$summary_date')";
-        DB::insert($sql);
+        $invoice = [
+            'user_id' => Auth::id(),
+            'customer_name' => $request->input('customer_name'),
+            'phone_number' => $request->input('phone_number'),
+            'gst_number' => $request->input('gst_number'),
+            'state' => $request->input('state'),
+            'billing_address' => $request->input('billing_address'),
+            'sub_total' => $request->input('sub_total'),
+            'additional_charge_name' => $request->input('additional_charge_name'),
+            'additional_charge' => $request->input('additional_charge'),
+            'discount_percentage' => $request->input('discount_percentage'),
+            'discount' => $request->input('discount'),
+            'round_off' => $request->input('round_off'),
+            'total_amount' => $request->input('total_amount'),
+            'cash_receive' => $request->input('cash_receive'),
+            'balance_amount' => $request->input('balance_amount'),
+            'total_item' => $request->input('total_item'),
+            'due_date' => $request->input('due_date'),
+            'invoice_date' => $request->input('invoice_date'),
+            'item_id' => $request->input('item_id'),
+            'summary_date' => $request->input('summary_date')
+        ];
 
-        // Return a JSON response with the success message.
+        DB::table('invoice')->insert($invoice);
+
         return response()->json([
-            'success' => 'yes',
+            'success' => true,
             'message' => 'Item Added',
+            'Data' => $invoice
         ]);
     }
 
-    public function show_invoice(Request $request)
+
+    public function add_received_showinvoice(Request $request)
     {
-        // Get the request parameters
         $id = $request->get('id');
 
-        // Construct the SQL query
         $sql = "select id, customer_name, balance_amount, phone_number, cash_receive from invoice";
         if ($id !== null) {
             $sql .= " where id = $id";
         }
 
-        // Execute the query and get the results
         $results = DB::select($sql);
 
-        // Return the results as JSON
-        return response()->json($results);
+        if (count($results) === 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invoice not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $results,
+        ]);
     }
 
-   
+    public function add_received_update(Request $request, $id)
+    {
+        $customer_name = $request->get('customer_name');
+        $phone_number = $request->get('phone_number');
+        $cash_receive = $request->get('cash_receive');
+        $balance_amount = $request->get('balance_amount');
+
+        $validator = Validator::make($request->all(), [
+            'customer_name' => 'required|string|max:255',
+            'phone_number' => 'required|string|max:255',
+            'cash_receive' => 'required|numeric',
+            'balance_amount' => 'required|numeric',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => $validator->errors(),
+            ], 400);
+        }
+
+        $sql = "update invoice set customer_name='$customer_name',phone_number='$phone_number',cash_receive='$cash_receive',balance_amount='$balance_amount' where id='$id' ";
+        DB::update($sql);
+
+        $invoice = DB::table('invoice')->where('id', $id)->first();
+
+        return response()->json([
+            'success' => 'true',
+            'message' => 'Invoice updated successfully',
+            'invoice' => $invoice,
+        ]);
+    }
     
 
 
     public function delete_invoice_all_data_ByUserId(Request $request)
     {
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
-        // Check if the user exists in the "invoice" table
         $userExists = DB::table('invoice')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false, 'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('invoice')->where('user_id', $userId)->delete();
-            return response()->json(['message' => 'Data deleted']);
+            return response()->json(['success' => true, 'message' => 'Data deleted']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -95,18 +157,17 @@ class InvoiceController extends Controller
     {
         $Id = $request->input('id');
 
-        // Check if the user exists in the "invoice" table
         $userExists = DB::table('invoice')->where('id', $Id)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('invoice')->where('id', $Id)->delete();
-            return response()->json(['message' => 'Data deleted']);
+            return response()->json(['success' => true,'message' => 'Data deleted']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -124,7 +185,7 @@ class InvoiceController extends Controller
         $invoices = DB::select('select ' . $fieldList . ' from invoice ' . $condition);
 
         $response = [
-            'error' => 'no error',
+            'success' => true,
             'total' => count($invoices),
             'data' => $invoices,
         ];
@@ -135,9 +196,8 @@ class InvoiceController extends Controller
 
     public function find_week_dates(Request $request)
     {
-       
         $summary_date = $request->input('summary_date');
-        $user_id = $request->input('user_id');
+        $user_id = $request->user()->id;
         $customer_name = $request->input('customer_name');
 
         $condition = null;
@@ -153,7 +213,7 @@ class InvoiceController extends Controller
         }
 
         $count = $condition->count();
-        $response = ['total' => $count];
+        $response = [ 'success' => true,'total' => $count];
         $response['data'] = $condition->get();
 
         return response()->json($response);

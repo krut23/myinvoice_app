@@ -10,7 +10,8 @@ use Illuminate\Support\Facades\Validator;
 
 class PartyController extends Controller
 {
-    public function createParty(Request $request){
+    public function createParty(Request $request)
+    {
 
         $validator = Validator::make($request->all(), [
             'party_name' => 'required|string|max:255|unique:party,party_name',
@@ -25,7 +26,7 @@ class PartyController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first(),
+                'error' => $validator->errors()->first(),
             ], 400);
         }
 
@@ -38,7 +39,7 @@ class PartyController extends Controller
         $shippingAddress = $request->input('shiping_address');
         $shippingState = $request->input('shiping_state');
 
-        DB::table('party')->insert([
+        $party = DB::table('party')->insertGetId([
             'user_id' => $userId,
             'party_name' => $partyName,
             'phone_number' => $phoneNumber,
@@ -48,46 +49,56 @@ class PartyController extends Controller
             'shiping_address' => $shippingAddress,
             'shiping_state' => $shippingState,
         ]);
+        $partyData = DB::table('party')->where('id', $party)->first();
 
         return response()->json([
             'success' => true,
             'message' => 'Party created successfully',
+            'Data' => $partyData
         ], 201);
     }
 
     public function show_partyName_unique(Request $request)
     {
-        $condition = null;
         $FieldList = 'user_id,party_name';
 
         if (isset($request['user_id']) || isset($request['party_name'])) {
             $condition = " where user_id = {$request['user_id']}";
         }
-        $sql = "select $FieldList from party $condition";
-        $parties = DB::select($sql);
 
-        return response()->json([
-            'total' => count($parties),
-            'data' => $parties,
-        ]);
+        try {
+            $sql = "select $FieldList from party $condition";
+            $parties = DB::select($sql);
+
+            return response()->json([
+                'success' => 'true',
+                'total' => count($parties),
+                'data' => $parties,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => 'false',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function delete_party_all_data(Request $request)
     {
 
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
         $userExists = DB::table('party')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('party')->where('user_id', $userId)->delete();
-            return response()->json(['message' => ' data deleted successfully']);
+            return response()->json(['success' => true,'message' => ' data deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -105,30 +116,36 @@ class PartyController extends Controller
 
         if ($validator->fails()) {
             return response()->json([
+                'success' => false,
                 'errors' => $validator->errors()
             ], 400);
         }
 
-        $party = DB::table('party')->where('id', $id)->first();
+        $party_name = $request->input('party_name');
+        $phone_number = $request->input('phone_number');
+        $gst_number = $request->input('gst_number');
+        $state = $request->input('state');
+        $billing_address = $request->input('billing_address');
+        $shiping_address = $request->input('shiping_address');
+        $shiping_state = $request->input('shiping_state');
 
-        if (!$party) {
-            return response()->json([
-                'error' => 'Party not found'
-            ], 404);
-        }
-
-        $party->party_name = $request->input('party_name');
-        $party->phone_number = $request->input('phone_number');
-        $party->gst_number = $request->input('gst_number');
-        $party->state = $request->input('state');
-        $party->billing_address = $request->input('billing_address');
-        $party->shiping_address = $request->input('shiping_address');
-        $party->shiping_state = $request->input('shiping_state');
-
+        DB::table('party')
+            ->where('id', $id)
+            ->update([
+                'party_name' => $party_name,
+                'phone_number' => $phone_number,
+                'gst_number' => $gst_number,
+                'state' => $state,
+                'billing_address' => $billing_address,
+                'shiping_address' => $shiping_address,
+                'shiping_state' => $shiping_state,
+            ]);
+            $party = DB::table('party')->where('id', $id)->first();
 
         return response()->json([
+            'success' => True,
             'message' => 'Party Updated',
-            'party' => $party
+            'Data' => $party
         ], 200);
     }
 
@@ -170,13 +187,19 @@ class PartyController extends Controller
     {
 
         $party_name = $request->input('party_name');
-        $user_id = $request->input('user_id');
+        $user_id = $request->user()->id;
 
 
         if ($party_name === null || $user_id === null) {
             return response()->json([
+                'success' => false,
                 'error' => 'Input(s) missing'
             ], 400);
+        }
+        $partyExists = DB::table('party')->where('party_name', $party_name)->exists();
+
+        if (!$partyExists) {
+            return response()->json(['success' => false,'error' => 'Party not found.'], 404);
         }
         DB::table('party')
             ->where('party_name', $party_name)
@@ -184,7 +207,7 @@ class PartyController extends Controller
             ->delete();
 
         return response()->json([
-            'error' => 'no error',
+            'success' => true,
             'message' => 'Party deleted'
         ]);
     }

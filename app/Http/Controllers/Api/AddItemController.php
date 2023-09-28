@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Validator;
 class AddItemController extends Controller
 {
 
-    public function addItem(Request $request)
+    public function add_item(Request $request)
     {
         $itemTable = 'item';
 
@@ -36,7 +36,7 @@ class AddItemController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first(),
+                'error' => $validator->errors()->first(),
             ], 400);
         }
 
@@ -89,45 +89,45 @@ class AddItemController extends Controller
         $response = [];
 
         $extraQty = $request->input('extra_qty');
-        $user_id = $request->input('user_id');
+        $user_id = $request->user()->id;
 
         if (!$extraQty || !$user_id) {
-            return response()->json(['error' => 'Input(s) missing']);
+            return response()->json(['success' => false, 'error' => 'Input(s) missing']);
         }
 
-              DB::table('item')
-                ->where('user_id', $user_id)
-                ->update(['extra_qty' => $extraQty]);
+        DB::table('item')
+            ->where('user_id', $user_id)
+            ->update(['extra_qty' => $extraQty]);
 
-              return response()->json([
-                'success' => true,
-                'user_id'=>$user_id,
-                'extra_qty' =>$extraQty,
-                'message' => 'Successfully updated extra quantity'
+        return response()->json([
+                    'success' => true,
+                    'user_id'=>$user_id,
+                    'extra_qty' =>$extraQty,
+                    'message' => 'Successfully updated extra quantity'
 
 
-             ]);
+        ]);
 
-              return response()->json($response);
-        }
+            return response()->json($response);
+    }
 
 
 
     public function delete_item_all_data(Request $request)
     {
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
         $userExists = DB::table('item')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('item')->where('user_id', $userId)->delete();
-            return response()->json(['message' => 'Data deleted']);
+            return response()->json(['success' => true,'message' => 'Data deleted']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -139,14 +139,14 @@ class AddItemController extends Controller
         $IdExists = DB::table('item')->where('id', $Id)->exists();
 
         if (!$IdExists) {
-            return response()->json(['error' => 'Id not found.'], 404);
+            return response()->json(['success' => false,'error' => 'Id not found.'], 404);
         }
 
         try {
             DB::table('item')->where('id', $Id)->delete();
-            return response()->json(['message' => ' data deleted successfully']);
+            return response()->json(['success' => true,'message' => ' data deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 

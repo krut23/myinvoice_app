@@ -13,11 +13,9 @@ use Illuminate\Validation\ValidationException;
 
 class CategoryController extends Controller
 {
-    public function __construct()
+
+    public function createCategory(Request $request)
     {
-        $this->middleware(Authenticate::class);
-    }
-    public function createCategory(Request $request){
         try {
             $request->validate([
                 'category_name' => 'required|string|max:255|unique:category,category_name',
@@ -57,20 +55,29 @@ class CategoryController extends Controller
 
     public function delete_category_all_data(Request $request)
     {
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
-        // Check if the user exists in the "category" table
         $userExists = DB::table('category')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json([
+                'success' => false,
+                'error' => 'User not found.'
+            ], 404);
         }
 
         try {
             DB::table('category')->where('user_id', $userId)->delete();
-            return response()->json(['message' => 'Data deleted']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data deleted'
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json([
+                'success' => true,
+                'error' => 'An error occurred'
+            ], 500);
         }
     }
 
@@ -78,18 +85,17 @@ class CategoryController extends Controller
     {
         $id = $request->input('id');
 
-        // Check if the user exists in the "category" table
         $userExists = DB::table('category')->where('id', $id)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('category')->where('id', $id)->delete();
-            return response()->json(['message' => 'Data deleted']);
+            return response()->json([ 'success' => true,'message' => 'Data deleted']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,    'error' => 'An error occurred'], 500);
         }
     }
 

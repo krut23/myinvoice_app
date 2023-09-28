@@ -14,19 +14,19 @@ class InvoiceItemDataController extends Controller
     public function delete_invoice_item_data_all_data(Request $request)
     {
 
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
         $userExists = DB::table('invoice_item_data')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('invoice_item_data')->where('user_id', $userId)->delete();
-            return response()->json(['message' => 'Invoice data deleted successfully']);
+            return response()->json(['success' => true,'message' => 'Invoice data deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -37,14 +37,14 @@ class InvoiceItemDataController extends Controller
         $finalIdExists = DB::table('invoice_item_data')->where('final_id', $finalId)->exists();
 
         if (!$finalIdExists) {
-            return response()->json(['error' => 'FinalId not found.'], 404);
+            return response()->json(['success' => false,'error' => 'FinalId not found.'], 404);
         }
 
         try {
             DB::table('invoice_item_data')->where('final_id', $finalId)->delete();
-            return response()->json(['message' => 'Data deleted']);
+            return response()->json(['success' => true,'message' => 'Data deleted']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 

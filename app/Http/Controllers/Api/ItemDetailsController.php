@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 
 class ItemDetailsController extends Controller
 {
-     public function addItemDetail(Request $request){
+    public function add_item_details(Request $request)
+    {
 
         $validator = Validator::make($request->all(), [
             'item_id' => 'required|numeric',
@@ -22,7 +23,7 @@ class ItemDetailsController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first(),
+                'error' => $validator->errors()->first(),
             ], 400);
         }
 
@@ -51,20 +52,19 @@ class ItemDetailsController extends Controller
     public function delete_item_details_all_data_ByUserId(Request $request)
     {
 
-        $userId = $request->input('user_id');
+        $userId = $request->user()->id;
 
-        // Check if the user exists in the "item_details" table
         $userExists = DB::table('item_details')->where('user_id', $userId)->exists();
 
         if (!$userExists) {
-            return response()->json(['error' => 'User not found.'], 404);
+            return response()->json(['success' => false,'error' => 'User not found.'], 404);
         }
 
         try {
             DB::table('item_details')->where('user_id', $userId)->delete();
-            return response()->json(['message' => ' data deleted successfully']);
+            return response()->json(['success' => true,'message' => ' data deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 
@@ -73,18 +73,17 @@ class ItemDetailsController extends Controller
 
         $itemId = $request->input('item_id');
 
-        // Check if the user exists in the "item_details" table
         $itemExists = DB::table('item_details')->where('item_id', $itemId)->exists();
 
         if (!$itemExists) {
-            return response()->json(['error' => 'Item not found.'], 404);
+            return response()->json(['success' => false,'error' => 'Item not found.'], 404);
         }
 
         try {
             DB::table('item_details')->where('item_id', $itemId)->delete();
-            return response()->json(['message' => ' data deleted successfully']);
+            return response()->json(['success' => true,'message' => ' data deleted successfully']);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'An error occurred'], 500);
+            return response()->json(['success' => false,'error' => 'An error occurred'], 500);
         }
     }
 

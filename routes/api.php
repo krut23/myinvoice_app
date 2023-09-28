@@ -30,23 +30,19 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // User Controller Route
 Route::post('/register', [UserController::class, 'user_register']);
+Route::post('/login', [LoginController::class, 'login'])->withoutMiddleware(['jwt']);
 
 
-Route::controller(LoginController::class)->group(function () {
-    Route::post('login', 'login');
-});
-
-
-Route::middleware('auth:api')->group(function () {
+Route::middleware('jwt')->group(function () {
 
 // User Controller Route //13
-    Route::get('show', [UserController::class, 'show_businessName_phoneNumber']);
+    Route::get('show', [UserController::class, 'businessname_phonenumber']);
     Route::get('user-check-username', [UserController::class, 'check_username_register_or_not']);
     Route::post('users-userName', [UserController::class, 'fetch_user_name']);
     Route::post('users-password', [UserController::class, 'fetch_user_password']);
     Route::put('users', [UserController::class, 'update_gst_registration']);
     Route::post('users', [UserController::class, 'show_ph_gst_address']); //checked
-    Route::post('user-update-signature', [UserController::class, 'updateSignature']);
+    Route::post('user-update-signature', [UserController::class, 'add_signature']);
 
     Route::post('user_update',[UserController::class,'update_business_user']); //checked
     Route::post('update_number',[UserController::class,'update_phone_number']); //checked
@@ -90,7 +86,8 @@ Route::middleware('auth:api')->group(function () {
 
 
 // Invoice Controller Route  //14
-    Route::get('invoice', [InvoiceController::class, 'show_invoice']);
+    Route::get('invoice', [InvoiceController::class, 'add_received_showinvoice']);
+    Route::get('receive-update-invoice', [InvoiceController::class, 'add_received_update']);
     
     Route::post('createInvoice', [InvoiceController::class, 'createInvoice']);
     Route::post('invoice-allData', [InvoiceController::class, 'delete_invoice_all_data_ByUserId']);

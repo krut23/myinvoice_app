@@ -13,10 +13,6 @@ use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
-public function __construct()
-    {
-        $this->middleware('auth:api', ['except' => ['login']]);
-    }
 
     public function login(Request $request)
     {
@@ -58,6 +54,7 @@ public function __construct()
 
         if ($validator->fails()) {
             return response()->json([
+                'success' => false,
                 'errors' => $validator->errors()->all(),
             ], 400);
         }
@@ -69,6 +66,7 @@ public function __construct()
 
         // Return a success response
         return response()->json([
+            'success' =>  true,
             'message' => 'Password updated successfully.',
         ], 200);
     }
@@ -76,7 +74,6 @@ public function __construct()
     public function logout()
     {
         auth()->logout();
-        // Return a success response.
         return response()->json([
             'message' => 'Successfully logged out.',
         ]);
