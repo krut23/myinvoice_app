@@ -101,28 +101,20 @@ class CategoryController extends Controller
 
     public function select_category_name(Request $request)
     {
-        $user_id = $request->input('user_id');
+        $user_id = $request->user()->id;
         $response = [];
-    
-        if (!$user_id) {
-            return response()->json([
-                'success' => false,
-                'error' => 'missing_user_id',
-                'message' => 'user_id parameter is required.',
-            ]);
-        }
-    
+
+
         $categories = DB::table('category')
             ->select('id', 'category_name')
             ->where('user_id', $user_id)
             ->get();
-    
+
         $count = $categories->count();
-    
+
         if ($count > 0) {
             return response()->json([
                 'success' => true,
-                
                 'message' => 'Successfully get user fieldlist data.',
                 'total' => $count,
                 'data' => $categories,
@@ -130,76 +122,74 @@ class CategoryController extends Controller
         } else {
             return response()->json([
                 'success' => false,
-                'error' => 'no_data',
-                'message' => 'No categories found for the user with id ' . $user_id,
+                'error' => 'No categories found for the user with id ' . $user_id,
             ]);
         }
     }
-    
+
 
 
     public function update_category(Request $request)
     {
         $response = [];
-    
+
         $categoryName = $request->input('category_name');
         $id = $request->input('id');
-    
+
         if (!$categoryName || !$id) {
             return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
         }
-    
+
         $count = DB::table('category')->where('id', $id)->count();
-    
+
         if ($count === 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'Record not found for the given id.',
             ], 404);
         }
-    
+
         DB::table('category')->where('id', $id)->update(['category_name' => $categoryName]);
-    
-        array_push($response, ['message' => 'Successfully updated category']);
-    
+
+        $category = DB::table('category')->where('id', $id)->first();
+
         return response()->json([
             'success' => true,
-            'data' => $response,
+            'message' => 'Successfully updated category',
+            'data' => $category
         ]);
     }
-    
+
 
     public function view_category(Request $request)
     {
         try {
-            $user_id = $request->input('user_id');
+            $user_id = $request->user()->id;
             $condition = null;
             $fieldList = ['id', 'category_name'];
-    
+
             if (!empty($user_id)) {
                 $condition = ['user_id' => $user_id];
                 $fieldList = ['*'];
             }
-    
+
             $categories = DB::table('category')
                 ->select($fieldList)
                 ->where($condition)
                 ->get();
-    
+
             $count = $categories->count();
-    
+
             if ($count > 0) {
                 return response()->json([
                     'success' => true,
                     'total' => $count,
-                    'data' => $categories,
-                    'error' => 'no_error',
+                    'data' => $categories
                 ]);
             } else {
                 return response()->json([
                     'success' => false,
-                    'error' => 'no_data',
-                    'message' => 'No categories found for the user with id ' . $user_id,
+                    'error' => 'No categories found for the user with id ' . $user_id,
                 ]);
             }
         } catch (\Exception $e) {
@@ -209,6 +199,6 @@ class CategoryController extends Controller
             ], 500);
         }
     }
-    
+
 
 }

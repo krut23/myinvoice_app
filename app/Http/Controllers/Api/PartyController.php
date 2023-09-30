@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 
@@ -60,28 +61,28 @@ class PartyController extends Controller
 
     public function show_partyName_unique(Request $request)
     {
-        $FieldList = 'user_id,party_name';
-
-        if (isset($request['user_id']) || isset($request['party_name'])) {
-            $condition = " where user_id = {$request['user_id']}";
-        }
-
         try {
-            $sql = "select $FieldList from party $condition";
-            $parties = DB::select($sql);
+            // Get the user ID of the logged-in user
+            $userId = Auth::user()->id;
+             // Create a SQL query to select all unique party names for the logged-in user
+             $sql = "SELECT DISTINCT party_name FROM party WHERE user_id = {$userId}";
 
-            return response()->json([
-                'success' => 'true',
-                'total' => count($parties),
-                'data' => $parties,
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => 'false',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
-    }
+             // Execute the query and get the results
+             $parties = DB::select($sql);
+
+             // Return a JSON response with the results
+          return response()->json([
+           'success' => 'true',
+           'total' => count($parties),
+           'data' => $parties,
+           ]);
+           } catch (Exception $e) {
+               return response()->json([
+                   'success' => 'false',
+                   'error' => $e->getMessage(),
+               ], 500);
+           }
+       }
 
     public function delete_party_all_data(Request $request)
     {
@@ -105,7 +106,7 @@ class PartyController extends Controller
     public function edit_party(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'party_name' => 'required|string|max:255',
+            'party_name' => 'required|string|max:255|unique:party,party_name',
             'phone_number' => 'required|string|max:10',
             'gst_number' => 'required|string|max:15',
             'state' => 'required|string|max:255',
@@ -154,20 +155,20 @@ class PartyController extends Controller
     {
         $condition = null;
         $fieldList = 'party_name';
-    
+
         $party_name = $request->input('party_name');
-        $user_id = $request->input('user_id');
-    
+        $user_id = $request->user()->id;
+
         if ($party_name && $user_id) {
             $condition = " WHERE party_name = '$party_name' AND user_id = '$user_id'";
             $fieldList = '*';
         } elseif ($party_name || $user_id) {
             return response()->json(['success' => false, 'error' => 'Both party_name and user_id are required']);
         }
-    
+
         $sql = "SELECT $fieldList FROM party $condition";
         $result = DB::select($sql);
-    
+
         if (count($result) > 0) {
             return response()->json([
                 'success' => true,
@@ -181,61 +182,54 @@ class PartyController extends Controller
             ]);
         }
     }
-    
+
 
     public function delete_party(Request $request)
     {
+        $response = [];
 
-        $party_name = $request->input('party_name');
-        $user_id = $request->user()->id;
+        $partyName = $request->input('party_name');
+        $userId = $request->user()->id;
 
-
-        if ($party_name === null || $user_id === null) {
+        if (empty($partyName)) {
             return response()->json([
                 'success' => false,
-                'error' => 'Input(s) missing'
+                'message' => 'Required input(s) missing.',
             ], 400);
         }
-        $partyExists = DB::table('party')->where('party_name', $party_name)->exists();
 
-        if (!$partyExists) {
-            return response()->json(['success' => false,'error' => 'Party not found.'], 404);
-        }
-        DB::table('party')
-            ->where('party_name', $party_name)
-            ->where('user_id', $user_id)
+        $deletedRows = DB::table('party')
+            ->where('party_name', $partyName)
             ->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Party deleted'
-        ]);
+        if ($deletedRows > 0) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Party deleted successfully.',
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Party not found or not deleted.',
+            ], 404);
+        }
     }
 
     public function view_party(Request $request)
     {
         try {
-            $user_id = $request->input('user_id');
-    
-            if (!$user_id) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'missing_user_id',
-                    'message' => 'user_id parameter is required.',
-                ]);
-            }
-    
+            $user_id = $request->user()->id;
+
             $parties = DB::table('party')
                 ->select('party_name')
                 ->where('user_id', $user_id)
                 ->get();
-    
+
             $count = $parties->count();
-    
+
             if ($count > 0) {
                 return response()->json([
                     'success' => true,
-                    'error' => 'no_error',
                     'message' => 'Successfully retrieved user parties data.',
                     'total' => $count,
                     'data' => $parties,
@@ -243,8 +237,7 @@ class PartyController extends Controller
             } else {
                 return response()->json([
                     'success' => false,
-                    'error' => 'no_data',
-                    'message' => 'No parties found for the user with id ' . $user_id,
+                    'error' => 'No parties found for the user with id ' . $user_id,
                 ]);
             }
         } catch (\Exception $e) {
@@ -254,7 +247,7 @@ class PartyController extends Controller
             ], 500);
         }
     }
-    
+
 }
 
 

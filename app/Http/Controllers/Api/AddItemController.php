@@ -23,7 +23,7 @@ class AddItemController extends Controller
             'gst' => 'required|string',
             'opening_stock' => 'required|numeric',
             'item_date' => 'required|string',
-            'item_image' => 'required|string',
+            'item_image' => 'required|image',
             'item_category' => 'required|string',
             'item_remark' => 'required|string',
             's_price_add_gst' => 'required|string',
@@ -48,7 +48,6 @@ class AddItemController extends Controller
         $gst = $request->input('gst');
         $opening_stock = $request->input('opening_stock');
         $item_date = $request->input('item_date');
-        $item_image = $request->input('item_image');
         $item_category = $request->input('item_category');
         $item_remark = $request->input('item_remark');
         $s_price_add_gst = $request->input('s_price_add_gst');
@@ -57,7 +56,17 @@ class AddItemController extends Controller
         $temp_stock = $request->input('temp_stock');
         $extra_qty = $request->input('extra_qty');
 
-        DB::table($itemTable)->insert([
+// Handle the item_image field
+        $item_image = $request->file('item_image');
+
+        if ($item_image) {
+            $item_image_name = $item_image->getClientOriginalName();
+            $item_image_path = $item_image->storeAs('public/item_images', $item_image_name);
+            $item_image = $item_image_path;
+        }
+
+        // Update the DB::table() insert query to include the item_image field
+      DB::table($itemTable)->insert([
             'user_id' => $userId,
             'item_name' => $item_name,
             'sales_price' => $sales_price,
@@ -76,12 +85,13 @@ class AddItemController extends Controller
             'extra_qty' => $extra_qty
         ]);
 
+
         return response()->json([
             'success' => true,
             'message' => 'Item Added',
+
         ]);
     }
-
 
 
     public function updateExtraQtyByUserId(Request $request)
@@ -154,19 +164,19 @@ class AddItemController extends Controller
     {
         $id = $request->input('id');
         $itemName = $request->input('item_name');
-    
+
         $query = DB::table('item');
-    
+
         if ($id) {
             $query->where('id', $id);
         }
-    
+
         if ($itemName) {
             $query->where('item_name', 'like', '%' . $itemName . '%');
         }
-    
+
         $results = $query->get();
-    
+
         if (count($results) > 0) {
             return response()->json([
                 'success' => true,
@@ -180,69 +190,60 @@ class AddItemController extends Controller
             ]);
         }
     }
-    
 
-   public function select_opening_stock(Request $request)
-   {
-       $id = $request->input('id');
-   
-       $condition = '';
-       $fieldList = 'id';
-   
-       if ($id) {
-           $condition = "WHERE id = $id";
-           $fieldList = '*';
-       }
-   
-       $response = [];
-       $sql = "SELECT $fieldList FROM item $condition";
-   
-       $stockData = DB::select($sql);
-   
-       $count = count($stockData);
-   
-       if ($count > 0) {
-           $response['success'] = true;
-           
-           foreach ($stockData as $row) {
-               array_push($response, (array) $row);
-           }
-       } else {
-           $response['success'] = false;
-           $response['error'] = 'No records found';
-       }
-   
-       return response()->json($response);
-   }
-   
+
+    public function select_opening_stock(Request $request)
+    {
+        $id = $request->input('id');
+
+        $condition = '';
+        $fieldList = 'id';
+
+        if ($id) {
+            $condition = "WHERE id = $id";
+            $fieldList = '*';
+        }
+
+        $stockData = DB::select("SELECT $fieldList FROM item $condition");
+
+        $count = count($stockData);
+
+        if ($count > 0) {
+            return response()->json(['success' => true, 'stock_data' => $stockData]);
+        } else {
+            return response()->json(['success' => false, 'error' => 'No records found']);
+        }
+    }
+
+
    public function item_date_stock(Request $request)
    {
        $response = [];
-       
+
        $id = $request->input('id');
        $item_date = $request->input('item_date');
-       
+
        $fieldList = ['id', 'item_date', 'temp_stock'];
-       
+
        $query = DB::table('item')->select($fieldList);
-       
+
        if ($id !== null) {
            $query->orWhere('id', $id);
        }
-       
+
        if ($item_date !== null) {
            $query->orWhere('item_date', 'like', "%$item_date%");
        }
-       
+
        $results = $query->orderBy('id', 'desc')->get();
-       
+
        $count = count($results);
-       
+
        if ($count > 0) {
            foreach ($results as $result) {
                $response[] = (array) $result;
            }
-           
+
            return response()->json([
                'success' => true,
                'total' => $count,
@@ -255,153 +256,158 @@ class AddItemController extends Controller
            ], 404);
        }
    }
-   
+
 
     public function update_extra_qty(Request $request)
     {
         $response = [];
-    
+
         $extraQty = $request->input('extra_qty');
         $id = $request->input('id');
-    
+
         if (!$extraQty || !$id) {
             return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
         }
-    
+
         $count = DB::table('item')->where('id', $id)->count();
-    
+
         if ($count === 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'Record not found for the given id.',
             ], 404);
         }
-    
+
         DB::table('item')->where('id', $id)->update(['extra_qty' => $extraQty]);
-    
-        array_push($response, ['message' => 'Successfully updated extra quantity']);
-    
+
+        $item = DB::table('item')->where('id', $id)->first();
+
         return response()->json([
             'success' => true,
-            'data' => $response,
+            'message' => 'Successfully updated extra quantity',
+            'Data' => $item
+
         ]);
     }
-    
+
 
     public function update_stock(Request $request)
     {
         $response = [];
-    
+
         $openingStock = $request->input('opening_stock');
         $id = $request->input('id');
-    
+
         if (!$openingStock || !$id) {
             return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
         }
-    
+
         $affectedRows = DB::table('item')
             ->where('id', $id)
             ->update(['opening_stock' => $openingStock]);
-    
+
         if ($affectedRows === 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'Item not found or no changes made.',
             ], 404);
         }
-    
+
         $message = 'Stock Updated';
-    
+
         array_push($response, ['message' => $message]);
-    
+
         return response()->json([
             'success' => true,
             'data' => $response,
         ]);
     }
-    
+
 
 
     public function update_item(Request $request)
     {
-        $id = $request->input('id', $request->query('id'));
-    
-        if ($id === null) {
-            return response()->json([
-                'error' => 'ID parameter is missing',
-                'success' => false
-            ], 400);
-        }
-    
-        $updateField = $request->input('update_item');
-        $updateValue = $request->input($updateField);
-    
-        if ($updateField === null) {
-            return response()->json([
-                'error' => 'Update field is missing',
-                'success' => false
-            ], 400);
-        }
-    
-        $allowedFields = [
-            'item_name',
-            'sales_price',
-            'purchase_price',
-            'msn',
-            'gst',
-            'opening_stock',
-            'item_date',
-            'item_image',
-            'item_category',
-            'item_remark',
-            's_price_add_gst',
-            'p_price_add_gst',
-            'low_stock_warning',
-            'temp_stock'
+        $response = [];
+
+        $input = $request->all();
+
+        // Validate the input data
+        $validationRules = [
+            'item_name' => 'required',
+            'sales_price' => 'required',
+            'purchase_price' => 'required',
+            'msn' => 'required',
+            'gst' => 'required',
+            'opening_stock' => 'required',
+            'item_date' => 'required',
+            'item_image' => 'required|image',
+            'item_category' => 'required',
+            'item_remark' => 'required',
+            's_price_add_gst' => 'required',
+            'p_price_add_gst' => 'required',
+            'low_stock_warning' => 'required',
+            'temp_stock' => 'required'
         ];
-    
-        if ($updateField !== 'all' && !in_array($updateField, $allowedFields)) {
+
+        try {
+            $this->validate($request, $validationRules);
+        } catch (ValidationException $e) {
+            // Validation failed, return an error response
             return response()->json([
-                'error' => 'Invalid update field',
-                'success' => false
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
             ], 400);
         }
-    
-        $dataToUpdate = [];
-    
-        if ($updateField === 'all') {
-            foreach ($allowedFields as $field) {
-                $dataToUpdate[$field] = $request->input($field);
-            }
-        } else {
-            $dataToUpdate[$updateField] = $updateValue;
+
+        // Handle the item_image field
+        $item_image = $request->file('item_image');
+
+        if ($item_image) {
+            $item_image_name = $item_image->getClientOriginalName();
+            $item_image_path = $item_image->storeAs('public/item_images', $item_image_name);
+            $item_image = $item_image_name;
         }
-    
-        $result = DB::table('item')
-            ->where('id', $id)
-            ->update($dataToUpdate);
-    
-        if ($result) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Item updated',
-                
+
+        // Update the item in the database
+        DB::table('item')
+            ->where('id', $input['id'])
+            ->update([
+                'item_name' => $input['item_name'],
+                'sales_price' => $input['sales_price'],
+                'purchase_price' => $input['purchase_price'],
+                'msn' => $input['msn'],
+                'gst' => $input['gst'],
+                'opening_stock' => $input['opening_stock'],
+                'item_date' => $input['item_date'],
+                'item_image' => $item_image,
+                'item_category' => $input['item_category'],
+                'item_remark' => $input['item_remark'],
+                's_price_add_gst' => $input['s_price_add_gst'],
+                'p_price_add_gst' => $input['p_price_add_gst'],
+                'low_stock_warning' => $input['low_stock_warning'],
+                'temp_stock' => $input['temp_stock'],
             ]);
-        } else {
-            return response()->json([
-                'error' => 'Item not found or no updates were made',
-                'success' => false
-            ], 404);
-        }
+
+        // Get the updated item data
+        $data = DB::table('item')
+            ->where('id', $input['id'])
+            ->first();
+
+        // Return a success response
+        return response()->json([
+            'success' => true,
+            'message' => 'Item Updated',
+            'data' => $data
+        ]);
     }
-    
+
+
 
     public function view_item(Request $request)
     {
 
-        $user_id = $request->input('user_id');
-        
-        
+        $user_id = $request->user()->id;
 
         $fieldList = "id, item_name, sales_price, gst, s_price_add_gst, p_price_add_gst, opening_stock, item_image, item_remark, low_stock_warning, extra_qty";
         $condition = null;
@@ -412,13 +418,12 @@ class AddItemController extends Controller
             $fieldList = "*";
         }
 
-
         $result = DB::select("SELECT $fieldList FROM item $condition", [$user_id]);
         $response = [];
 
 
         if (count($result) > 0) {
-          
+
             $response['success'] = true;
             $response['total'] = count($result);
             $response['data'] = $result;
@@ -426,7 +431,7 @@ class AddItemController extends Controller
             $response['error'] = 'Data not found';
             $response['success'] = false;
         }
-    
+
         return response()->json($response, 200);
     }
 

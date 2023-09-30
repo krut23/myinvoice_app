@@ -16,16 +16,46 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-
-
     public function user_register(Request $request)
     {
-        $userTable = 'users';
-
         try {
-            $validated = $request->validate([
+            $request->validate([
                 'user_name' => 'required|string|unique:users',
                 'password' => 'required|string|min:8',
+            ]);
+
+            // Register the new user.
+          $user =  DB::table('users')->insert([
+                'user_name' => $request->user_name,
+                'password' => Hash::make($request->password),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User created successfully'
+            ]);
+
+        } catch (ValidationException $exception) {
+            $errors = $exception->errors();
+
+            $errorMessage = '';
+            foreach ($errors as $field => $messages) {
+                foreach ($messages as $message) {
+                    $errorMessage .= $message . PHP_EOL;
+                }
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => $errorMessage,
+            ], 400);
+        }
+    }
+
+    public function user_update(Request $request)
+    {
+        try {
+            $validated = $request->validate([
                 'business_name' => 'required|string',
                 'phone_number' => 'required|string|unique:users',
                 'gst_number' => 'sometimes|string',
@@ -43,9 +73,9 @@ class UserController extends Controller
             $businessLogoFileName = basename($businessLogoFilePath);
             $signatureFileName = basename($signatureFilePath);
 
-            $user = new User([
-                'user_name' => $validated['user_name'],
-                'password' => Hash::make($validated['password']),
+            $user = DB::table('users')
+            ->where('id', $request->user()->id)
+            ->update([
                 'business_name' => $request->input('business_name'),
                 'phone_number' => $request->input('phone_number'),
                 'gst_number' => $request->input('gst_number'),
@@ -57,12 +87,15 @@ class UserController extends Controller
                 'address' => $request->input('address'),
             ]);
 
-            $user->save();
+            $user = \DB::table('users')
+            ->where('id', $request->user()->id)
+            ->first();
+            unset($user->password);
 
             return response()->json([
                 'success' => true,
                 'user' => $user,
-                'message' => 'User created successfully.',
+                'message' => 'User updated successfully.',
             ]);
         } catch (ValidationException $exception) {
 
@@ -74,10 +107,11 @@ class UserController extends Controller
                 $errorResponse->errors[$field] = $errors[0];
             }
 
-            return response()->json($errorResponse, 400);
+            return response()->json([
+                'success' => false,
+                $errorResponse],400);
         }
     }
-
 
 
     public function add_signature(Request $request)
@@ -112,7 +146,7 @@ class UserController extends Controller
 
 
 
-    
+
     public function businessname_phonenumber(Request $request)
     {
         $condition = null;
@@ -133,7 +167,7 @@ class UserController extends Controller
 
         return response()->json($response);
     }
-   
+
     public function check_username_register_or_not(Request $request)
     {
         $condition = null;
@@ -262,20 +296,20 @@ class UserController extends Controller
 
     public function show_ph_gst_address(Request $request)
     {
-        $id = $request->get('id');
+        $id = $request->user()->id;
         $condition = null;
         $FieldList = "id,phone_number,gst_number,state,address,your_name,business_name,business_logo";
-    
+
         if (!$id) {
             return response()->json(['success' => false, 'error' => 'Missing id']);
         }
-    
+
         $condition = "WHERE id = '$id'";
-    
+
         $sql = "SELECT $FieldList FROM users $condition";
-    
+
         $users = DB::select($sql);
-    
+
         if (count($users) > 0) {
             return response()->json([
                 'success' => true,
@@ -289,14 +323,14 @@ class UserController extends Controller
             ]);
         }
     }
-    
+
 
 
     public function update_business_user(Request $request)
     {
         $response = [];
 
-        $id = $request->input('id');
+        $id = $request->user()->id;
         $updateFields = $request->only('business_name', 'business_logo', 'gst_number', 'state', 'address');
 
         if (!$id) {
@@ -321,11 +355,32 @@ class UserController extends Controller
             ], 400);
         }
 
-        DB::table('users')->where('id', $id)->update($validFields);
+        // Save the uploaded business logo file
+        if ($request->hasFile('business_logo')) {
+            $business_logo = $request->file('business_logo');
+            $filename = uniqid() . '.' . $business_logo->getClientOriginalExtension();
+            $business_logo = Storage::putFileAs('public/business_logos', $business_logo, $filename);
+
+            $validFields['business_logo'] = $business_logo;
+        }
+
+        // Update the user information in the database
+        $user = DB::table('users')->where('id', $id)->update($validFields);
+        $updatedUser = DB::table('users')->where('id', $id)->first();
+        $businessUserInfo = [
+            'id' => $id,
+            'business_name' => $updatedUser->business_name,
+            'business_logo' => $updatedUser->business_logo,
+            'gst_number' => $updatedUser->gst_number,
+            'state' => $updatedUser->state,
+            'address' => $updatedUser->address,
+        ];
 
         return response()->json([
             'success' => true,
-            'message' => 'User information updated'
+            'message' => 'User information updated',
+            'Data' => $businessUserInfo,
+
         ]);
     }
 
@@ -333,80 +388,90 @@ class UserController extends Controller
     public function update_phone_number(Request $request)
     {
         $response = [];
-    
-        $input = $request->all();
-    
-        if (!isset($input['phone_number']) || !isset($input['id'])) {
-            return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
-        }
-    
-        $id = $input['id'];
-        $phone_number = $input['phone_number'];
-    
-        $affectedRows = DB::table('users')
-            ->where('id', $id)
-            ->update([
-                'phone_number' => $phone_number,
-            ]);
-    
-        if ($affectedRows === 0) {
-            return response()->json([
-                'success' => false,
-                'error' => 'User not found or no changes made.',
-            ], 404);
-        }
-    
-        array_push($response, ['message' => 'User updated successfully']);
-    
-        return response()->json([
-            'success' => true,
-            'data' => $response,
-        ]);
-    }
-    
 
-    public function update_your_name(Request $request)
+        // Get the current user ID.
+        $id = Auth::user()->id;
+
+        $phone_number = $request->input('phone_number');
+
+    // Validate the new phone number.
+    $validator = \Validator::make([
+        'phone_number' => $phone_number,
+    ], [
+        'phone_number' => 'required|string|min:10|max:10',
+    ]);
+
+    if ($validator->fails()) {
+        // Get the first validation error message.
+        $errorMessage = $validator->errors()->first();
+
+        // Return a validation error response.
+        return response()->json([
+            'success' => false,
+            'error' => $errorMessage,
+        ], 400);
+    }
+
+    // Update the user's phone number in the database.
+    $affectedRows = DB::table('users')
+        ->where('id', $id)
+        ->update([
+            'phone_number' => $phone_number,
+        ]);
+
+    if ($affectedRows === 0) {
+        return response()->json([
+            'success' => false,
+            'error' => 'User not found or no changes made.',
+        ], 404);
+    }
+
+    // Return a success response.
+    return response()->json([
+        'success' => true,
+        'message' => 'User updated successfully',
+    ]);
+    }
+
+
+
+    public function update_user_name(Request $request)
     {
         $response = [];
-    
+
         $request->validate([
-            'id' => 'required',
             'user_name' => 'required',
         ]);
-    
-        $id = $request->input('id');
+
+        $id = $request->user()->id;
         $userName = $request->input('user_name');
-    
+
         $affectedRows = DB::table('users')
             ->where('id', $id)
             ->update(['user_name' => $userName]);
-    
+
         if ($affectedRows === 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'User not found or no changes made.',
             ], 404);
         }
-    
-        array_push($response, ["message" => "Name successfully updated"]);
-    
+
         return response()->json([
             'success' => true,
-            'data' => $response,
+            "message" => "Name successfully updated",
+            'data' => $userName,
         ]);
     }
-    
+
 
     public function user_add_sign_logo_ph(Request $request)
     {
         $response = [];
-        
-        $request->validate([
-            'id' => 'required',
-        ]);
-        
-        $id = $request->input('id');
+
+        $id = $request->user()->id;
         $fieldList = [
+            'id',
             'business_name',
             'phone_number',
             'gst_number',
@@ -415,97 +480,82 @@ class UserController extends Controller
             'business_logo',
             'signature',
         ];
-        
+
         $userData = DB::table('users')
             ->select($fieldList)
             ->where('id', $id)
             ->get();
-        
+
         if ($userData->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'error' => 'User not found.',
             ], 404);
         }
-        
+
         $userData->each(function ($item) use (&$response) {
             array_push($response, $item);
         });
-        
+
         return response()->json([
             'success' => true,
             'data' => $response,
         ]);
     }
-    
-    
+
+
 
 
     public function user_name_logo(Request $request)
     {
         $response = [];
-    
-        $request->validate([
-            'id' => 'required',
-        ]);
-    
-        $id = $request->input('id');
+
+        $id = $request->user()->id;
         $fieldList = [
+            'id',
             'business_name',
             'business_logo',
         ];
-    
+
         $userData = DB::table('users')
             ->select($fieldList)
             ->where('id', $id)
             ->get();
-    
+
         if ($userData->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'error' => 'User not found.',
             ], 404);
         }
-    
-        array_push($response, ["success" => "true"]);
-    
-        $userData->each(function ($item) use (&$response) {
-            array_push($response, $item);
-        });
-    
-        return response()->json($response);
+
+         // Get the first user record.
+       $userData = $userData->first();
+
+        return response()->json(["success" => true,'Data' => $userData,]);
     }
-    
+
 
     public function view_signature(Request $request)
     {
         try {
-            $id = $request->input('id');
-    
-            if (!$id) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'missing_id',
-                    'message' => 'id parameter is required.',
-                ]);
-            }
-    
+            $id = $request->user()->id;
+
+
             $signature = DB::table('users')
                 ->select('signature')
                 ->where('id', $id)
                 ->first();
-    
+
             if (!$signature) {
                 return response()->json([
                     'success' => false,
-                    'error' => 'no_data',
-                    'message' => 'Signature not found for the user with id ' . $id,
+                    'error' => 'Signature not found for the user with id ' . $id,
                 ]);
             }
-    
+
             return response()->json([
                 'success' => true,
-                'error' => 'no_error',
                 'message' => 'Successfully retrieved user signature.',
                 'data' => $signature,
             ]);
@@ -516,7 +566,7 @@ class UserController extends Controller
             ], 500);
         }
     }
-    
+
 
 }
 

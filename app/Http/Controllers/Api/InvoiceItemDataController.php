@@ -52,24 +52,24 @@ class InvoiceItemDataController extends Controller
     {
         try {
             $query = "SELECT final_id, item_name, sales_price, total_sales_price, tax, total_tax, item_qty, item_id FROM invoice_item_data";
-    
+
             if ($request->has('final_id')) {
                 $finalId = $request->final_id;
-                $query .= " WHERE final_id = '{$finalId}'"; 
+                $query .= " WHERE final_id = '{$finalId}'";
             }
-    
+
             if ($request->has('item_name')) {
                 if (strpos($query, 'WHERE') !== false) {
-                    $item_name = $request->item_name; 
-                    $query .= " AND item_name LIKE '%{$item_name}%'"; 
+                    $item_name = $request->item_name;
+                    $query .= " AND item_name LIKE '%{$item_name}%'";
                 } else {
-                    $item_name = $request->item_name; 
-                    $query .= " WHERE item_name LIKE '%{$item_name}%'"; 
+                    $item_name = $request->item_name;
+                    $query .= " WHERE item_name LIKE '%{$item_name}%'";
                 }
             }
-    
+
             $invoiceItemData = DB::select($query);
-    
+
             return response()->json([
                 'success' => true,
                 'total' => count($invoiceItemData),
@@ -79,7 +79,7 @@ class InvoiceItemDataController extends Controller
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
-    
+
 
 
     public function item_copy_data(Request $request)
@@ -112,46 +112,45 @@ class InvoiceItemDataController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
+
 
     public function update_final_id(Request $request)
     {
         $response = [];
-    
+
         $finalId = $request->input('final_id');
         $id = $request->input('id');
-        $userId = $request->input('user_id');
-    
+        $userId = $request->user()->id;
+
         if (!$id || !$userId) {
             return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
         }
-    
+
         $count = DB::table('invoice_item_data')
             ->where('id', $id)
             ->where('user_id', $userId)
             ->count();
-    
+
         if ($count === 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'Record not found for the given id and user_id.',
             ], 404);
         }
-    
+
         if ($finalId !== null) {
             DB::table('invoice_item_data')
                 ->where('id', $id)
                 ->where('user_id', $userId)
                 ->update(['final_id' => $finalId]);
         }
-    
-        array_push($response, ['message' => 'Successfully updated final_id']);
-    
+
         return response()->json([
             'success' => true,
-            'data' => $response,
+            'message' => 'Successfully updated final_id'
+
         ]);
     }
-    
+
 
 }

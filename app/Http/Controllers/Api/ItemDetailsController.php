@@ -101,18 +101,17 @@ class ItemDetailsController extends Controller
 
         $result = DB::select("SELECT $fieldList FROM item_details $condition", [$item_id]);
         $response = [];
-        $response[] = ['success' => true];
 
 
         if (count($result) > 0) {
-          
+
             $response['success'] = true;
             $response['data'] = $result;
             } else {
             $response['error'] = 'Data not found';
             $response['success'] = false;
             }
-                
+
             return response()->json($response, 200);
 
 
