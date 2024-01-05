@@ -14,7 +14,7 @@ class ItemDetailsController extends Controller
 
         $validator = Validator::make($request->all(), [
             'item_id' => 'required|numeric',
-            'name' => 'required|string|unique:item_details,name',
+            'name' => 'required|string',
             'date' => 'required|string',
             'pcs_change' => 'required|string',
             'final_pcs' => 'required|string'

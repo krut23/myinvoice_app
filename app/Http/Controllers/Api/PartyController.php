@@ -11,17 +11,18 @@ use Illuminate\Support\Facades\Validator;
 
 class PartyController extends Controller
 {
-    public function createParty(Request $request)
+    
+public function createParty(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
-            'party_name' => 'required|string|max:255|unique:party,party_name',
+            'party_name' => 'required|string|max:255',
             'phone_number' => 'required|string|max:255',
-            'gst_number' => 'required|string|max:255',
-            'state' => 'required|string|max:255',
+            'gst_number' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
             'billing_address' => 'required|string|max:255',
-            'shiping_address' => 'required|string|max:255',
-            'shiping_state' => 'required|string|max:255',
+            'shiping_address' => 'nullable|string|max:255',
+            'shiping_state' => 'nullable|string|max:255',
+
         ]);
 
         if ($validator->fails()) {
@@ -33,56 +34,76 @@ class PartyController extends Controller
 
         $userId = $request->user()->id;
         $partyName = $request->input('party_name');
-        $phoneNumber = $request->input('phone_number');
-        $gstNumber = $request->input('gst_number');
-        $state = $request->input('state');
-        $billingAddress = $request->input('billing_address');
-        $shippingAddress = $request->input('shiping_address');
-        $shippingState = $request->input('shiping_state');
 
+        // Check if the party name already exists for this user
+        $existingParty = DB::table('party')->where('party_name', $partyName)->where('user_id', $userId)->first();
+        if ($existingParty) {
+            return response()->json([
+                'success' => false,
+                'error' => 'You already have a party with the same name.',
+            ], 400);
+        }
+
+        // Insert the new party into the database
         $party = DB::table('party')->insertGetId([
             'user_id' => $userId,
             'party_name' => $partyName,
-            'phone_number' => $phoneNumber,
-            'gst_number' => $gstNumber,
-            'state' => $state,
-            'billing_address' => $billingAddress,
-            'shiping_address' => $shippingAddress,
-            'shiping_state' => $shippingState,
+            'phone_number' => $request->input('phone_number'),
+            'gst_number' => $request->input('gst_number'),
+            'state' => $request->input('state'),
+            'billing_address' => $request->input('billing_address'),
+            'shiping_address' => $request->input('shiping_address'),
+            'shiping_state' => $request->input('shiping_state'),
         ]);
+
         $partyData = DB::table('party')->where('id', $party)->first();
 
         return response()->json([
             'success' => true,
             'message' => 'Party created successfully',
-            'Data' => $partyData
+            'user_data' => $partyData
         ], 201);
     }
 
     public function show_partyName_unique(Request $request)
-    {
-        try {
-            // Get the user ID of the logged-in user
-            $userId = Auth::user()->id;
-             // Create a SQL query to select all unique party names for the logged-in user
-             $sql = "SELECT DISTINCT party_name FROM party WHERE user_id = {$userId}";
+{
+    try {
+        // Get the user ID of the logged-in user
+        $userId = Auth::user()->id;
 
-             // Execute the query and get the results
-             $parties = DB::select($sql);
+        // Get the party name from the request body
+        $partyName = $request->get('party_name');
 
-             // Return a JSON response with the results
-          return response()->json([
-           'success' => 'true',
-           'total' => count($parties),
-           'data' => $parties,
-           ]);
-           } catch (Exception $e) {
-               return response()->json([
-                   'success' => 'false',
-                   'error' => $e->getMessage(),
-               ], 500);
-           }
-       }
+        // Create a SQL query to check if the party name exists for the logged-in user
+        $sql = "SELECT COUNT(*) AS total FROM party WHERE party_name = '{$partyName}' AND user_id = {$userId}";
+
+        // Execute the query and get the result
+        $count = DB::selectOne($sql)->total;
+
+        // If the party name exists, return a JSON response with the data
+        if ($count > 0) {
+            return response()->json([
+                'success' => true,
+                'total' => 1,
+                'user_data' => [
+                    'party_name' => $partyName,
+                ],
+            ]);
+        } else {
+            // Return a JSON response with a status of `false`
+            return response()->json([
+                'success' => false,
+                'error' => 'Party name does not exist.',
+            ]);
+        }
+    } catch (Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
+
 
     public function delete_party_all_data(Request $request)
     {
@@ -103,53 +124,25 @@ class PartyController extends Controller
         }
     }
 
-    public function edit_party(Request $request, $id)
-    {
-        $validator = Validator::make($request->all(), [
-            'party_name' => 'required|string|max:255|unique:party,party_name',
-            'phone_number' => 'required|string|max:10',
-            'gst_number' => 'required|string|max:15',
-            'state' => 'required|string|max:255',
-            'billing_address' => 'required|string',
-            'shiping_address' => 'required|string',
-            'shiping_state' => 'required|string|max:255',
-        ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 400);
-        }
+    public function edit_party(Request $request)
+{
+    $id = $request->input('id');
+    $data = $request->all();
+    unset($data['id']);
 
-        $party_name = $request->input('party_name');
-        $phone_number = $request->input('phone_number');
-        $gst_number = $request->input('gst_number');
-        $state = $request->input('state');
-        $billing_address = $request->input('billing_address');
-        $shiping_address = $request->input('shiping_address');
-        $shiping_state = $request->input('shiping_state');
+    DB::table('party')
+        ->where('id', $id)
+        ->update($data);
 
-        DB::table('party')
-            ->where('id', $id)
-            ->update([
-                'party_name' => $party_name,
-                'phone_number' => $phone_number,
-                'gst_number' => $gst_number,
-                'state' => $state,
-                'billing_address' => $billing_address,
-                'shiping_address' => $shiping_address,
-                'shiping_state' => $shiping_state,
-            ]);
-            $party = DB::table('party')->where('id', $id)->first();
+    $party = DB::table('party')->where('id', $id)->first();
 
-        return response()->json([
-            'success' => True,
-            'message' => 'Party Updated',
-            'Data' => $party
-        ], 200);
-    }
-
+    return response()->json([
+        'success' => True,
+        'message' => 'Party Updated',
+        'user_data' => $party
+    ], 200);
+}
 
     public function show_party_details(Request $request)
     {
@@ -162,18 +155,18 @@ class PartyController extends Controller
         if ($party_name && $user_id) {
             $condition = " WHERE party_name = '$party_name' AND user_id = '$user_id'";
             $fieldList = '*';
-        } elseif ($party_name || $user_id) {
+        } elseif ($party_name) {
             return response()->json(['success' => false, 'error' => 'Both party_name and user_id are required']);
         }
 
         $sql = "SELECT $fieldList FROM party $condition";
         $result = DB::select($sql);
 
-        if (count($result) > 0) {
+        if ($result) {
+            $user_data = $result[0];
             return response()->json([
                 'success' => true,
-                'total' => count($result),
-                'data' => $result,
+                'user_data' => $user_data,
             ]);
         } else {
             return response()->json([
@@ -194,10 +187,23 @@ class PartyController extends Controller
         if (empty($partyName)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Required input(s) missing.',
+                'error' => 'Required input(s) missing.',
             ], 400);
         }
 
+        // Check if the party exists in the invoice table
+        $invoiceCount = DB::table('invoice')
+            ->where('customer_name', $partyName)
+            ->count();
+
+        if ($invoiceCount > 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Party cannot be deleted because it exists in the invoice table.',
+            ], 401);
+        }
+
+        // Delete the party from the party table
         $deletedRows = DB::table('party')
             ->where('party_name', $partyName)
             ->delete();
@@ -210,19 +216,64 @@ class PartyController extends Controller
         } else {
             return response()->json([
                 'success' => false,
-                'message' => 'Party not found or not deleted.',
+                'error' => 'Party not found or not deleted.',
             ], 404);
         }
     }
 
+
     public function view_party(Request $request)
+    {
+        try {
+            // Get the user's role.
+            $user = $request->user()->id;
+
+            // Query all party_names, filtered by the user's role.
+            $parties = DB::table('party')
+                ->leftJoin('invoice', 'party.party_name', '=', 'invoice.customer_name')
+                ->select('party.id','party_name', DB::raw('SUM(balance_amount) AS balance_amount'))
+                ->where('party.user_id', $user)
+                ->groupBy('party_name','party.id')
+                ->orderBy('party_name')
+                ->get();
+
+            $count = $parties->count();
+
+            if ($count > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Successfully retrieved user parties data.',
+                    'total' => $count,
+                    'data' => $parties,
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'No parties found for the user with role ' . $role,
+                ]);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+
+
+    public function view_balance(Request $request)
     {
         try {
             $user_id = $request->user()->id;
 
             $parties = DB::table('party')
-                ->select('party_name')
-                ->where('user_id', $user_id)
+                ->join('invoice', 'party.party_name', '=', 'invoice.customer_name')
+                ->select('party_name', DB::raw('SUM(balance_amount) AS balance_amount'))
+                ->where('party.user_id', $user_id)
+                ->groupBy('party_name')
+                ->having('balance_amount', '>', 0)
                 ->get();
 
             $count = $parties->count();

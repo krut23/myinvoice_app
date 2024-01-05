@@ -105,7 +105,7 @@ class InvoiceItemDataController extends Controller
             $count = DB::table('invoice_item_data')->where('user_id', $userId)->count();
 
             return response()->json([
-                'error' => 'no error',
+                'success' => true,
                 'total' => $count,
             ]);
         } catch (\Exception $e) {

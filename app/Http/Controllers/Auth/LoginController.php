@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -24,19 +25,21 @@ class LoginController extends Controller
         $credentials = $request->only('user_name', 'password');
         $token = Auth::attempt($credentials);
 
+
         if ($token) {
             $user = Auth::user();
-
+         // Update the remember_token column in the database
+         $user->remember_token = $token;
+         $user->save();
             return response()->json([
-                'authorization' => [
-                    'token' => $token,
-                    'type' => 'bearer',
-                ],
+                'status' => true,
+                'authorization' => $token,
                 'user' => $user,
             ]);
         } else {
 
             return response()->json([
+                'status' => false,
                 'error' => 'Invalid User Name and Password',
             ], 401);
         }
@@ -71,11 +74,39 @@ class LoginController extends Controller
         ], 200);
     }
 
+   public function delete()
+    {
+    // Get the logged-in user's ID.
+    $userId = Auth::guard('api')->user()->id;
+
+    // Filter the data in the tables to only include the logged-in user's data.
+    $categoryData = DB::table('category')->where('user_id', $userId)->get();
+    $invoiceData = DB::table('invoice')->where('user_id', $userId)->get();
+    $invoiceItemData = DB::table('invoice_item_data')->where('user_id', $userId)->get();
+    $itemData = DB::table('item')->where('user_id', $userId)->get();
+    $itemDetailsData = DB::table('item_details')->where('user_id', $userId)->get();
+    $partyData = DB::table('party')->where('user_id', $userId)->get();
+    $tempInvoiceData = DB::table('temp_invoice')->where('user_id', $userId)->get();
+
+    // Delete the filtered data from the tables.
+    DB::table('category')->where('user_id', $userId)->delete();
+    DB::table('invoice')->where('user_id', $userId)->delete();
+    DB::table('invoice_item_data')->where('user_id', $userId)->delete();
+    DB::table('item')->where('user_id', $userId)->delete();
+    DB::table('item_details')->where('user_id', $userId)->delete();
+    DB::table('party')->where('user_id', $userId)->delete();
+    DB::table('temp_invoice')->where('user_id', $userId)->delete();
+
+
+    // Return a success response.
+    return response()->json(['success' => true,'message' => 'deleted all data']);
+    }
+    
     public function logout()
     {
-        auth()->logout();
-        return response()->json([
-            'message' => 'Successfully logged out.',
-        ]);
-    }
+        $title = 'Logout';
+        Session::forget('switchBackProfileUserId');
+        Auth::logout();
+// Return a success response.
+    return response()->json(['success' => true,'message' => 'Log out']);    }
 }

@@ -170,56 +170,32 @@ class TempInvoiceController extends Controller
 
     public function temp_update_item_details(Request $request)
     {
-        $response = [];
+        $request->validate([
+            'item_id' => 'required|numeric',
+        ]);
 
-        $item_id = $request->input('item_id');
-        $sales_price = $request->input('sales_price');
-        $item_qty = $request->input('item_qty');
-        $tax = $request->input('tax');
-        $total_sales_price = $request->input('total_sales_price');
-        $total_tax = $request->input('total_tax');
+        $updateFields = [];
 
-        if ($item_id === null) {
-            return response()->json(['error' => 'item_id is missing'], 400);
+        foreach ($request->input() as $key => $value) {
+            if ($key !== 'item_id') {
+                $updateFields[$key] = $value;
+            }
+        }
+        try {
+            DB::table('temp_invoice')
+                ->where('item_id', $request->input('item_id'))
+                ->update($updateFields);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 400);
         }
 
-        $updateData = [];
-
-        if ($sales_price !== null) {
-            $updateData['sales_price'] = $sales_price;
-        }
-
-        if ($item_qty !== null) {
-            $updateData['item_qty'] = $item_qty;
-        }
-
-        if ($tax !== null) {
-            $updateData['tax'] = $tax;
-        }
-
-        if ($total_sales_price !== null) {
-            $updateData['total_sales_price'] = $total_sales_price;
-        }
-
-        if ($total_tax !== null) {
-            $updateData['total_tax'] = $total_tax;
-        }
-
-        if (empty($updateData)) {
-            return response()->json(['error' => 'No fields to update'], 400);
-        }
-
-        $result = DB::table('temp_invoice')
-            ->where('item_id', $item_id)
-            ->update($updateData);
-
-        if ($result !== false) {
-            $response[] = ['success' => true];
-            $response[] = ['message' => 'Stock Updated'];
-            return response()->json($response, 200);
-        } else {
-            return response()->json(['success' => false, 'error' => 'Failed to update records'], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Stock Updated',
+        ], 200);
     }
 
 
@@ -238,9 +214,12 @@ class TempInvoiceController extends Controller
             ->where('item_id', $item_id)
             ->update(['item_qty' => $item_qty]);
 
-        if ($result !== false) {
-            $response[] = ['message' => 'Stock Updated'];
-            return response()->json(['success' => true, 'data' => $response], 200);
+            if ($result > 0) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Stock Updated',
+                    'data' => $result,
+                ]);
         } else {
             return response()->json(['success' => false, 'error' => 'Failed to update stock'], 500);
         }
@@ -272,57 +251,65 @@ class TempInvoiceController extends Controller
 
         $results = $query->get();
 
+        $totalSalesPrice = DB::table('temp_invoice')
+        ->where('user_id', $user_id)
+        ->sum('total_sales_price');
+        
+         $totalSalesPrice = number_format($totalSalesPrice,2, '.', '');
+
         $count = count($results);
-
         if ($count > 0) {
-            $response['success'] = true;
-            $response['total'] = $count;
-            foreach ($results as $result) {
-                $response[] = (array) $result;
-            }
-
-            return response()->json($response, 200);
+            return response()->json([
+                'success' => true,
+                'total' => $count,
+                'total_temp_sales_price' => $totalSalesPrice,
+                'data' => $results,
+            ]);
         } else {
-            $response['success'] = false;
-            return response()->json(['error' => 'No records found'], 404);
+            return response()->json([
+                'success' => false,
+                'error' => 'No records found '
+            ]);
         }
     }
 
 
     public function visible(Request $request)
     {
-        try {
-            $response = [];
+        $item_id = $request->input('item_id');
 
-            $item_id = $request->input('item_id');
+        if ($item_id === null) {
+            return response()->json(['error' => 'item_id is missing'], 400);
+        }
 
-            if ($item_id === null) {
-                return response()->json(['error' => 'item_id is missing'], 400);
-            }
+        $query = DB::table('temp_invoice')
+            ->select('item_id', 'item_qty')
+            ->where('item_id', 'like', "$item_id%");
 
-            $query = DB::table('temp_invoice')
-                ->select('item_id', 'item_qty')
-                ->where('item_id', 'like', "$item_id%");
+        $results = $query->get();
 
-            $results = $query->get();
+        // Remove the array type from the response data
+        $data = [];
+        foreach ($results as $result) {
+            $data = [
+                'item_id' => $result->item_id,
+                'item_qty' => $result->item_qty,
+            ];
+        }
 
-            $count = count($results);
+        $count = count($results);
 
-            if ($count > 0) {
-                $response[] = ['success' => true];
-                $response[] = ['total' => $count];
-                foreach ($results as $result) {
-                    $response[] = (array) $result;
-                }
-
-                return response()->json($response, 200);
-            } else {
-                return response()->json(['success' => false, 'error' => 'No records found'], 404);
-            }
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        if ($count > 0) {
+            return response()->json([
+                'success' => true,
+                'total' => $count,
+                'user_data' => $data,
+            ]);
+        } else {
+            return response()->json(['success' => false, 'error' => 'No records found'], 404);
         }
     }
+
 
 
     public function view_temp_item(Request $request)
@@ -346,22 +333,31 @@ class TempInvoiceController extends Controller
 
             $results = $query->orderBy('item_id', 'desc')->get();
 
-            $count = count($results);
-
-            if ($count > 0) {
-                $response = ['total' => $count];
+            if ($results) {
+                $userData = [];
                 foreach ($results as $result) {
-                    $response[] = (array) $result;
+                    $userData = $result;
                 }
-                $response[] = ['error' => 'no error'];
-                return response()->json(['success' => true] + $response, 200);
+
+                return response()->json([
+                    'success' => true,
+                    'user_data' =>  $userData,
+                ]);
             } else {
-                return response()->json(['success' => false, 'error' => 'No records found'], 404);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'No records found',
+                ]);
             }
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
+
+
 
 
 

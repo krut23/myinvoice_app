@@ -5,93 +5,102 @@ namespace App\Http\Controllers\Api;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 
 class AddItemController extends Controller
 {
 
-    public function add_item(Request $request)
-    {
-        $itemTable = 'item';
+ public function add_item(Request $request)
+{
+    $itemTable = 'item';
 
-        $validator = Validator::make($request->all(), [
-            'item_name' => 'required|string|max:255|unique:item,item_name',
-            'sales_price' => 'required|numeric',
-            'purchase_price' => 'required|numeric',
-            'msn' => 'required|numeric',
-            'gst' => 'required|string',
-            'opening_stock' => 'required|numeric',
-            'item_date' => 'required|string',
-            'item_image' => 'required|image',
-            'item_category' => 'required|string',
-            'item_remark' => 'required|string',
-            's_price_add_gst' => 'required|string',
-            'p_price_add_gst' => 'required|string',
-            'low_stock_warning' => 'required|string',
-            'temp_stock' => 'required|numeric',
-            'extra_qty' => 'required|numeric',
-        ]);
+    $validator = Validator::make($request->all(), [
+        'item_name' => 'required|string|max:255',
+        'sales_price' => 'required|numeric',
+        'purchase_price' => 'required|numeric',
+        'msn' => 'required|string',
+        'gst' => 'required|string',
+        'opening_stock' => 'required|numeric',
+        'item_date' => 'required|string',
+        'item_image' => 'image',
+        'item_category' => 'required|string',
+        'item_remark' => 'required|string',
+        's_price_add_gst' => 'required|string',
+        'p_price_add_gst' => 'required|string',
+        'low_stock_warning' => 'required|string',
+        'temp_stock' => 'required|numeric',
+        'extra_qty' => 'required|numeric',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => $validator->errors()->first(),
-            ], 400);
-        }
-
-        $userId = $request->user()->id;
-        $item_name = $request->input('item_name');
-        $sales_price = $request->input('sales_price');
-        $purchase_price = $request->input('purchase_price');
-        $msn = $request->input('msn');
-        $gst = $request->input('gst');
-        $opening_stock = $request->input('opening_stock');
-        $item_date = $request->input('item_date');
-        $item_category = $request->input('item_category');
-        $item_remark = $request->input('item_remark');
-        $s_price_add_gst = $request->input('s_price_add_gst');
-        $p_price_add_gst = $request->input('p_price_add_gst');
-        $low_stock_warning = $request->input('low_stock_warning');
-        $temp_stock = $request->input('temp_stock');
-        $extra_qty = $request->input('extra_qty');
-
-// Handle the item_image field
-        $item_image = $request->file('item_image');
-
-        if ($item_image) {
-            $item_image_name = $item_image->getClientOriginalName();
-            $item_image_path = $item_image->storeAs('public/item_images', $item_image_name);
-            $item_image = $item_image_path;
-        }
-
-        // Update the DB::table() insert query to include the item_image field
-      DB::table($itemTable)->insert([
-            'user_id' => $userId,
-            'item_name' => $item_name,
-            'sales_price' => $sales_price,
-            'purchase_price' => $purchase_price,
-            'msn' => $msn,
-            'gst' => $gst,
-            'opening_stock' => $opening_stock,
-            'item_date' => $item_date,
-            'item_image' => $item_image,
-            'item_category' => $item_category,
-            'item_remark' => $item_remark,
-            's_price_add_gst' => $s_price_add_gst,
-            'p_price_add_gst' => $p_price_add_gst,
-            'low_stock_warning' => $low_stock_warning,
-            'temp_stock' => $temp_stock,
-            'extra_qty' => $extra_qty
-        ]);
-
-
+    if ($validator->fails()) {
         return response()->json([
-            'success' => true,
-            'message' => 'Item Added',
-
-        ]);
+            'success' => false,
+            'error' => $validator->errors()->first(),
+        ], 400);
     }
+
+    $userId = $request->user()->id;
+    $item_name = $request->input('item_name');
+
+    // Check if an item with the same name already exists
+    $existingItem = DB::table($itemTable)
+        ->where('item_name', $item_name)
+        ->where('user_id', $userId)
+        ->first();
+
+    if ($existingItem) {
+        return response()->json([
+            'success' => false,
+            'error' => 'An item with the same name already exists.',
+        ], 400);
+    }
+    
+     $userId = $request->user()->id;
+    $item_name = $request->input('item_name');
+    $sales_price = $request->input('sales_price');
+    $purchase_price = $request->input('purchase_price');
+    $msn = $request->input('msn');
+    $gst = $request->input('gst');
+    $opening_stock = $request->input('opening_stock');
+    $item_date = $request->input('item_date');
+    $item_category = $request->input('item_category');
+    $item_remark = $request->input('item_remark');
+    $s_price_add_gst = $request->input('s_price_add_gst');
+    $p_price_add_gst = $request->input('p_price_add_gst');
+    $low_stock_warning = $request->input('low_stock_warning');
+    $temp_stock = $request->input('temp_stock');
+    $extra_qty = $request->input('extra_qty');
+    $item_image = $request->file('item_image');
+
+    // Create the new item
+    DB::table($itemTable)->insert([
+        'user_id' => $userId,
+        'item_name' => $item_name,
+          'sales_price' => $sales_price,
+      'purchase_price' => $purchase_price,
+      'msn' => $msn,
+      'gst' => $gst,
+      'opening_stock' => $opening_stock,
+      'item_date' => $item_date,
+      'item_image' => $item_image,
+      'item_category' => $item_category,
+      'item_remark' => $item_remark,
+      's_price_add_gst' => $s_price_add_gst,
+      'p_price_add_gst' => $p_price_add_gst,
+      'low_stock_warning' => $low_stock_warning,
+      'temp_stock' => $temp_stock,
+      'extra_qty' => $extra_qty
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Item Added',
+    ]);
+}
+
+
 
 
     public function updateExtraQtyByUserId(Request $request)
@@ -101,9 +110,9 @@ class AddItemController extends Controller
         $extraQty = $request->input('extra_qty');
         $user_id = $request->user()->id;
 
-        if (!$extraQty || !$user_id) {
-            return response()->json(['success' => false, 'error' => 'Input(s) missing']);
-        }
+        // if (!$extraQty) {
+        //     return response()->json(['success' => false, 'error' => 'Input(s) missing']);
+        // }
 
         DB::table('item')
             ->where('user_id', $user_id)
@@ -175,13 +184,13 @@ class AddItemController extends Controller
             $query->where('item_name', 'like', '%' . $itemName . '%');
         }
 
-        $results = $query->get();
+        $result = $query->first();
 
-        if (count($results) > 0) {
+        if ($result) {
             return response()->json([
                 'success' => true,
-                'total' => count($results),
-                'data' => $results,
+                'total' => 1,
+                'user_data' => $result,
             ]);
         } else {
             return response()->json([
@@ -265,7 +274,7 @@ class AddItemController extends Controller
         $extraQty = $request->input('extra_qty');
         $id = $request->input('id');
 
-        if (!$extraQty || !$id) {
+        if ( !$id) {
             return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
         }
 
@@ -298,15 +307,13 @@ class AddItemController extends Controller
         $openingStock = $request->input('opening_stock');
         $id = $request->input('id');
 
-        if (!$openingStock || !$id) {
-            return response()->json(['success' => false, 'error' => 'Input(s) missing'], 400);
-        }
+       
 
         $affectedRows = DB::table('item')
             ->where('id', $id)
             ->update(['opening_stock' => $openingStock]);
 
-        if ($affectedRows === 0) {
+        if ($affectedRows = 0) {
             return response()->json([
                 'success' => false,
                 'error' => 'Item not found or no changes made.',
@@ -315,11 +322,10 @@ class AddItemController extends Controller
 
         $message = 'Stock Updated';
 
-        array_push($response, ['message' => $message]);
 
         return response()->json([
             'success' => true,
-            'data' => $response,
+            'message' => $message,
         ]);
     }
 
@@ -331,34 +337,24 @@ class AddItemController extends Controller
 
         $input = $request->all();
 
-        // Validate the input data
-        $validationRules = [
-            'item_name' => 'required',
-            'sales_price' => 'required',
-            'purchase_price' => 'required',
-            'msn' => 'required',
-            'gst' => 'required',
-            'opening_stock' => 'required',
-            'item_date' => 'required',
-            'item_image' => 'required|image',
-            'item_category' => 'required',
-            'item_remark' => 'required',
-            's_price_add_gst' => 'required',
-            'p_price_add_gst' => 'required',
-            'low_stock_warning' => 'required',
-            'temp_stock' => 'required'
-        ];
-
-        try {
-            $this->validate($request, $validationRules);
-        } catch (ValidationException $e) {
-            // Validation failed, return an error response
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 400);
-        }
+        // Validate the request data
+        $request->validate([
+            'id' => 'required|exists:item,id',
+            'item_name' => 'required|string|max:255',
+            'sales_price' => 'required|numeric',
+            'purchase_price' => 'required|numeric',
+            'msn' => 'required|string|max:255',
+            'gst' => 'required|numeric',
+            'opening_stock' => 'required|numeric',
+            'item_date' => 'required|date',
+            'item_image' => 'nullable|image',
+            'item_category' => 'required|string|max:255',
+            'item_remark' => 'nullable|string',
+            's_price_add_gst' => 'required|numeric',
+            'p_price_add_gst' => 'required|numeric',
+            'low_stock_warning' => 'required|numeric',
+            'temp_stock' => 'required|numeric',
+        ]);
 
         // Handle the item_image field
         $item_image = $request->file('item_image');
@@ -367,10 +363,16 @@ class AddItemController extends Controller
             $item_image_name = $item_image->getClientOriginalName();
             $item_image_path = $item_image->storeAs('public/item_images', $item_image_name);
             $item_image = $item_image_name;
+        } else {
+            // Get the current item data from the database
+            $item = DB::table('item')->where('id', $input['id'])->first();
+
+            // Keep the old item image
+            $item_image = $item->item_image;
         }
 
         // Update the item in the database
-        DB::table('item')
+        $data=  DB::table('item')
             ->where('id', $input['id'])
             ->update([
                 'item_name' => $input['item_name'],
@@ -398,9 +400,13 @@ class AddItemController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Item Updated',
-            'data' => $data
+            'user_data' => $data
         ]);
     }
+
+
+
+
 
 
 

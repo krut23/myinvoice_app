@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\PdfController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,3 +17,21 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Route::get('/storage-link', function () {
+//   $targetFolder = storage_path('app/public');
+//   $linkFolder = $_SERVER['DOCUMENT_ROOT'] . '/storage';
+//   symlink( $targetFolder, $linkFolder);
+// });
+
+Route::get('/symlink', function () {
+    Artisan::call('storage:link');
+    echo "Done";
+});
+
+Route::middleware('jwt')->group(function () {
+
+ Route::post('/invoice',[PdfController::class, 'invoiceGenerate'])->name('invoice.icons');
+
+});
+Route::get('/download-pdf/{final_id}', [PdfController::class, 'downloadPDF'])->name('invoice.download');

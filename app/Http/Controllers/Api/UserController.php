@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use stdClass;
 use App\Models\User;
+use Tymon\JWTAuth\JWTAuth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
@@ -16,6 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+
     public function user_register(Request $request)
     {
         try {
@@ -25,14 +27,23 @@ class UserController extends Controller
             ]);
 
             // Register the new user.
-          $user =  DB::table('users')->insert([
+            $user = User::create([
                 'user_name' => $request->user_name,
                 'password' => Hash::make($request->password),
             ]);
 
+            // Generate a JWT token.
+            $token = Auth::fromUser($user);
+
+            // Save the JWT token to the database.
+            $user->remember_token = $token;
+            $user->save();
+
             return response()->json([
                 'success' => true,
-                'message' => 'User created successfully'
+                'message' => 'User created successfully',
+                'authorization' => $token,
+                'user' => $user
             ]);
 
         } catch (ValidationException $exception) {
@@ -52,6 +63,8 @@ class UserController extends Controller
         }
     }
 
+
+
     public function user_update(Request $request)
     {
         try {
@@ -61,17 +74,27 @@ class UserController extends Controller
                 'gst_number' => 'sometimes|string',
                 'your_name' => 'required|string',
                 'name' => 'required|string',
-                'business_logo' => 'required|image',
-                'signature' => 'required|image',
+                'business_logo' => 'required|image|max:2048',
+                'signature' => 'required|image|max:2048',
                 'state' => 'required|string',
                 'address' => 'required|string',
             ]);
 
-            $businessLogoFilePath = $request->file('business_logo')->store('public/business_logos');
-            $signatureFilePath = $request->file('signature')->store('public/signatures');
 
-            $businessLogoFileName = basename($businessLogoFilePath);
-            $signatureFileName = basename($signatureFilePath);
+            $business_logo = $request->file('business_logo');
+
+            if ($business_logo) {
+                $business_logo_name = $business_logo->getClientOriginalName();
+                $business_logo_path = $business_logo->storeAs('public/business_logos', $business_logo_name);
+                $business_logo = $business_logo_name;
+            }
+            $signature = $request->file('signature');
+
+            if ($signature) {
+                $signature_name = $signature->getClientOriginalName();
+                $signature_path = $signature->storeAs('public/signatures', $signature_name);
+                $signature = $signature_name;
+            }
 
             $user = DB::table('users')
             ->where('id', $request->user()->id)
@@ -81,8 +104,8 @@ class UserController extends Controller
                 'gst_number' => $request->input('gst_number'),
                 'your_name' => $request->input('your_name'),
                 'name' => $request->input('name'),
-                'business_logo' => $businessLogoFileName,
-                'signature' => $signatureFileName,
+                'business_logo' => $business_logo,
+                'signature' => $signature,
                 'state' => $request->input('state'),
                 'address' => $request->input('address'),
             ]);
@@ -113,13 +136,11 @@ class UserController extends Controller
         }
     }
 
-
     public function add_signature(Request $request)
     {
         $signature = $request->file('signature');
         $user = Auth::user();
         $id = $user->id;
-
 
         if (!$signature || !$id) {
             return response()->json([
@@ -129,18 +150,22 @@ class UserController extends Controller
         }
 
         $filename = uniqid() . '.' . $signature->getClientOriginalExtension();
-        $signature = Storage::putFileAs('public/signatures', $signature, $filename);
 
-        $user = DB::table('users')
+        // Save the signature image to the public/signatures folder
+        $signature->storeAs('public/signatures', $filename);
+
+        // Update the user's signature in the database
+        DB::table('users')
             ->where('id', $id)
             ->update([
                 'signature' => $filename,
             ]);
 
+        // Return the signature image name as a JSON response
         return response()->json([
             'success' => 'true',
             'message' => 'signature Updated',
-            'signature' => $signature,
+            'signature' => $filename,
         ]);
     }
 
@@ -149,24 +174,21 @@ class UserController extends Controller
 
     public function businessname_phonenumber(Request $request)
     {
-        $condition = null;
-        $FieldList = 'id,business_name,phone_number';
+        $user_id = $request->user()->id;
 
-        if ($request->has('id')) {
-            $condition = " where id='{$request->id}'";
-        }
-
-        $sql = "select $FieldList from users $condition";
+        $sql = "select business_name, phone_number from users where id='{$user_id}'";
         $users = DB::select($sql);
 
         $response = [
             'success' => 'true',
             'total' => count($users),
-            'data' => $users,
+            'user_data' => $users[0],
         ];
 
         return response()->json($response);
     }
+
+
 
     public function check_username_register_or_not(Request $request)
     {
@@ -258,41 +280,40 @@ class UserController extends Controller
     {
         $input = $request->all();
 
-        $rules = [
-            'business_name' => 'required',
-            'gst_number' => 'required',
-            'your_name' => 'required',
-            'phone_number' => 'required',
-        ];
+        // Update the user's GST registration information.
+        $user = \DB::table('users')
+            ->where('id', $request->user()->id);
 
-        $validator = \Validator::make($input, $rules);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => $validator->errors(),
-            ], 400);
+        if (isset($input['business_name'])) {
+            $user->update(['business_name' => $input['business_name']]);
         }
 
-        $user = \DB::table('users')
-            ->where('id', $request->user()->id)
-            ->update([
-                'business_name' => $input['business_name'],
-                'gst_number' => $input['gst_number'],
-                'your_name' => $input['your_name'],
-                'phone_number' => $input['phone_number'],
-            ]);
+        if (isset($input['gst_number'])) {
+            $user->update(['gst_number' => $input['gst_number']]);
+        }
 
-        $user = \DB::table('users')
-            ->where('id', $request->user()->id)
-            ->first();
+        if (isset($input['your_name'])) {
+            $user->update(['your_name' => $input['your_name']]);
+        }
+
+        if (isset($input['phone_number'])) {
+            $user->update(['phone_number' => $input['phone_number']]);
+        }
+
+        // Retrieve the updated user information.
+        $user = $user->first();
+
+        // Remove the password from the user information before returning it to the user.
         unset($user->password);
+
+        // Return the updated user information to the user.
         return response()->json([
             'success' => true,
             'message' => 'updated successfully',
             'user' => $user,
-        ]);
+        ], 200);
     }
+
 
     public function show_ph_gst_address(Request $request)
     {
@@ -311,15 +332,28 @@ class UserController extends Controller
         $users = DB::select($sql);
 
         if (count($users) > 0) {
-            return response()->json([
+            $responseData = [
                 'success' => true,
-                'total' => count($users),
-                'data' => $users,
-            ]);
+            ];
+
+            foreach ($users as $user) {
+                $responseData['user_data'] = [
+                    'id' => $user->id,
+                    'phone_number' => $user->phone_number,
+                    'gst_number' => $user->gst_number,
+                    'state' => $user->state,
+                    'address' => $user->address,
+                    'your_name' => $user->your_name,
+                    'business_name' => $user->business_name,
+                    'business_logo' => $user->business_logo,
+                ];
+            }
+
+            return response()->json($responseData);
         } else {
             return response()->json([
                 'success' => false,
-                'error' => 'No data found',
+                'message' => 'No user data found.'
             ]);
         }
     }
@@ -361,12 +395,15 @@ class UserController extends Controller
             $filename = uniqid() . '.' . $business_logo->getClientOriginalExtension();
             $business_logo = Storage::putFileAs('public/business_logos', $business_logo, $filename);
 
-            $validFields['business_logo'] = $business_logo;
+            // Get only the image name
+            $validFields['business_logo'] = $filename;
         }
 
         // Update the user information in the database
-        $user = DB::table('users')->where('id', $id)->update($validFields);
+        DB::table('users')->where('id', $id)->update($validFields);
         $updatedUser = DB::table('users')->where('id', $id)->first();
+
+        // Get the business user information
         $businessUserInfo = [
             'id' => $id,
             'business_name' => $updatedUser->business_name,
@@ -379,8 +416,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'User information updated',
-            'Data' => $businessUserInfo,
-
+            'user_data' => $businessUserInfo,
         ]);
     }
 
@@ -499,7 +535,7 @@ class UserController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $response,
+        'user_data' => $response[0],
         ]);
     }
 
@@ -532,7 +568,7 @@ class UserController extends Controller
          // Get the first user record.
        $userData = $userData->first();
 
-        return response()->json(["success" => true,'Data' => $userData,]);
+        return response()->json(["success" => true,'user_data' => $userData,]);
     }
 
 
@@ -557,7 +593,7 @@ class UserController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Successfully retrieved user signature.',
-                'data' => $signature,
+                'user_data' => $signature,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -566,6 +602,33 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+
+    public function deleteSignature(Request $request)
+{
+    $user = Auth::user();
+
+    // Check if the user has a signature
+    if (!$user->signature) {
+        return response()->json([
+            'success' => false,
+            'error' => 'User does not have a signature',
+        ], 404);
+    }
+
+    // Delete the signature image from the public/signatures folder
+    Storage::delete('public/signatures/' . $user->signature);
+
+    // Update the user's signature in the database
+    $user->signature = null;
+    $user->save();
+
+    // Return a success response
+    return response()->json([
+        'success' => true,
+        'message' => 'Signature deleted successfully',
+    ]);
+}
 
 
 }

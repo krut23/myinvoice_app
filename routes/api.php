@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\PdfController;
 use App\Http\Controllers\Api\TaxController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\PartyController;
@@ -36,28 +37,29 @@ Route::post('/login', [LoginController::class, 'login'])->withoutMiddleware(['jw
 Route::middleware('jwt')->group(function () {
 
 // User Controller Route
-    Route::post('show', [UserController::class, 'businessname_phonenumber']);
+    Route::get('show', [UserController::class, 'businessname_phonenumber']);
     Route::post('user-check-username', [UserController::class, 'check_username_register_or_not']);
     Route::post('users-userName', [UserController::class, 'fetch_user_name']);
     Route::post('users-password', [UserController::class, 'fetch_user_password']);
-    Route::put('users-gst', [UserController::class, 'update_gst_registration']);
-    Route::post('users-ph-gst', [UserController::class, 'show_ph_gst_address']);
+    Route::post('users-gst', [UserController::class, 'update_gst_registration']);
+    Route::get('users-ph-gst', [UserController::class, 'show_ph_gst_address']);
     Route::post('user-update-signature', [UserController::class, 'add_signature']);
     Route::post('user_update', [UserController::class, 'user_update']);
 
     Route::post('update_business',[UserController::class,'update_business_user']);
     Route::post('update_number',[UserController::class,'update_phone_number']);
     Route::post('update_name',[UserController::class,'update_user_name']);
-    Route::post('userData', [UserController::class, 'user_add_sign_logo_ph']);
-    Route::post('get_logo',[UserController::class,'user_name_logo']);
-    Route::post('view_signature',[UserController::class,'view_signature']);
+    Route::get('userData', [UserController::class, 'user_add_sign_logo_ph']);
+    Route::get('get_logo',[UserController::class,'user_name_logo']);
+    Route::get('view_signature',[UserController::class,'view_signature']);
+    Route::post('delete_signature', [UserController::class, 'deleteSignature']);
 
 
 
 // Login Controller Route
     Route::post('update-password', [LoginController::class, 'updatePassword']);
-    Route::post('logout', [LoginController::class, 'logout']);
-
+    Route::get('logout', [LoginController::class, 'logout']);
+    Route::delete('delete', [LoginController::class, 'delete']);
 
 // Category Controller Route
     Route::post('categories', [CategoryController::class, 'createCategory']);
@@ -89,19 +91,23 @@ Route::middleware('jwt')->group(function () {
 // Invoice Controller Route
     Route::post('createInvoice', [InvoiceController::class, 'createInvoice']);
     Route::post('invoice', [InvoiceController::class, 'add_received_showinvoice']);
-    Route::put('receive-update-invoice/{id}', [InvoiceController::class, 'add_received_update']);
+    Route::post('receive-update-invoice', [InvoiceController::class, 'add_received_update']);
     Route::post('invoice-allData', [InvoiceController::class, 'delete_invoice_all_data_ByUserId']);
     Route::post('delete-invoice', [InvoiceController::class, 'delete_invoice']);
     Route::post('invoices-customer-name', [InvoiceController::class, 'find_customer_name']);
     Route::post('find-week-dates', [InvoiceController::class, 'find_week_dates']);
     Route::post('week_dates', [InvoiceController::class, 'this_week_date']);
+    
+        Route::post('show_week_invoice', [InvoiceController::class, 'show_week_invoice']);
 
-    Route::post('collect_amount',[InvoiceController::class,'to_collect_amount']);
-    Route::post('amoutDetails',[InvoiceController::class,'to_collect_amunt_details']);
+
+    Route::get('collect_amount',[InvoiceController::class,'to_collect_amount']);
+    Route::get('amoutDetails',[InvoiceController::class,'to_collect_amunt_details']);
     Route::post('userBalance',[InvoiceController::class,'transaction_balance_amt']);
     Route::post('invoice', [InvoiceController::class, 'update_invoice']);
-    Route::post('bill_invoice',[InvoiceController::class,'view_bill']);
+    Route::get('bill_invoice',[InvoiceController::class,'view_bill']);
     Route::post('invoice_details',[InvoiceController::class,'view_invoice_details']);
+    Route::get('bill_balance_amount',[InvoiceController::class,'view_bill_balance_amount']);
 
 
 
@@ -112,7 +118,7 @@ Route::middleware('jwt')->group(function () {
     Route::post('invoice-item-data-allData', [InvoiceItemDataController::class, 'delete_invoice_item_data_all_data']);
     Route::post('invoice-item-data', [InvoiceItemDataController::class, 'delete_invoice_item_data_ByFinalId']);
     Route::post('invoice-item', [InvoiceItemDataController::class, 'invc_item_table']);
-    Route::post('invoice-copy', [InvoiceItemDataController::class, 'item_copy_data']);
+    Route::get('invoice-copy', [InvoiceItemDataController::class, 'item_copy_data']);
 
     Route::post('id_update',[InvoiceItemDataController::class,'update_final_id']);
 
@@ -128,13 +134,15 @@ Route::middleware('jwt')->group(function () {
 
 // Party Controller Route
     Route::post('party', [PartyController::class, 'createParty']);
-    Route::post('show-partyName', [PartyController::class, 'show_partyName_unique']);
+    Route::post('show-party', [PartyController::class, 'show_partyName_unique']);
     Route::post('delete-party-all-data', [PartyController::class, 'delete_party_all_data']);
-    Route::put('parties/{id}', [PartyController::class, 'edit_party']);
+    Route::post('parties', [PartyController::class, 'edit_party']);
     Route::post('party_details', [PartyController::class, 'show_party_details']);
 
     Route::post('delete_party',[PartyController::class,'delete_party']);
-    Route::post('party_name',[PartyController::class,'view_party']);
+    Route::get('party_name',[PartyController::class,'view_party']);
+    Route::get('to_receive',[PartyController::class,'view_balance']);
+
 
 
 
@@ -149,11 +157,13 @@ Route::middleware('jwt')->group(function () {
     Route::post('get_sales_price',[TempInvoiceController::class,'temp_total']);
 
     Route::post('update_tempDetails',[TempInvoiceController::class,'temp_update_item_details']);
-    Route::post('unvisible_stock',[TempInvoiceController::class,'unvisible_stock_item']);
-    Route::post('get_temp_invoice',[TempInvoiceController::class,'show_temp_invoice']);
+    Route::post('unvisible_stock',[TempInvoiceController::class,'unvisible_stock_item']); // same  temp_update_item_details
+    Route::get('get_temp_invoice',[TempInvoiceController::class,'show_temp_invoice']);
     Route::post('get_temp_qty',[TempInvoiceController::class,'visible']);
     Route::post('get_temp_item',[TempInvoiceController::class,'view_temp_item']);
 
+    Route::post('/invoice',[PdfController::class, 'invoiceGenerate'])->name('invoice.icons');
+Route::get('/download-pdf/{final_id}', [PdfController::class, 'downloadPDF'])->name('invoice.download');
 
-
+Route::post('show_pdf_url', [PdfController::class, 'show_pdf_url']);
 });

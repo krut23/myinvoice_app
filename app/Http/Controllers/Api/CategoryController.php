@@ -18,11 +18,20 @@ class CategoryController extends Controller
     {
         try {
             $request->validate([
-                'category_name' => 'required|string|max:255|unique:category,category_name',
+                'category_name' => 'required|string|max:255',
             ]);
 
             $userId = $request->user()->id;
             $categoryName = $request->input('category_name');
+            
+             // Check if the party name already exists for this user
+        $existingCategory = DB::table('category')->where('category_name', $categoryName)->where('user_id', $userId)->first();
+        if ($existingCategory) {
+            return response()->json([
+                'success' => false,
+                'error' => 'You already have a category with the same name.',
+            ], 400);
+        }
 
             DB::table('category')->insert([
                 'user_id' => $userId,
@@ -156,7 +165,7 @@ class CategoryController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Successfully updated category',
-            'data' => $category
+            'user_data' => $category
         ]);
     }
 

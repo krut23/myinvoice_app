@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Http\Request;
+use stdClass;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -15,25 +16,26 @@ class InvoiceController extends Controller
     public function createInvoice(Request $request)
     {
         $rules = [
+            'final_id' => 'required|string',
             'customer_name' => 'required|string|max:255',
             'phone_number' => 'required|string|max:255',
             'gst_number' => 'required|string|max:255',
             'state' => 'required|string|max:255',
             'billing_address' => 'required|string|max:255',
-            'sub_total' => 'required|numeric',
+            'sub_total' => 'required|string',
             'additional_charge_name' => 'required|string|max:255',
-            'additional_charge' => 'required|numeric',
-            'discount_percentage' => 'required|numeric',
-            'discount' => 'required|numeric',
-            'round_off' => 'required|numeric',
-            'total_amount' => 'required|numeric',
-            'cash_receive' => 'required|numeric',
-            'balance_amount' => 'required|numeric',
-            'total_item' => 'required|integer',
-            'due_date' => 'required|date',
-            'invoice_date' => 'required|date',
+            'additional_charge' => 'required|string',
+            'discount_percentage' => 'required|string',
+            'discount' => 'required|string',
+            'round_off' => 'required|string',
+            'total_amount' => 'required|string',
+            'cash_receive' => 'required|string',
+            'balance_amount' => 'required|string',
+            'total_item' => 'required|string',
+            'due_date' => 'required|string',
+            'invoice_date' => 'required|string',
             'item_id' => 'required|integer',
-            'summary_date' => 'required|date',
+            'summary_date' => 'required|string',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -47,6 +49,7 @@ class InvoiceController extends Controller
 
         $invoice = [
             'user_id' => Auth::id(),
+            'final_id' => $request->input('final_id'),
             'customer_name' => $request->input('customer_name'),
             'phone_number' => $request->input('phone_number'),
             'gst_number' => $request->input('gst_number'),
@@ -102,8 +105,9 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function add_received_update(Request $request, $id)
+    public function add_received_update(Request $request)
     {
+        $id = $request->get('id');
         $customer_name = $request->get('customer_name');
         $phone_number = $request->get('phone_number');
         $cash_receive = $request->get('cash_receive');
@@ -112,8 +116,8 @@ class InvoiceController extends Controller
         $validator = Validator::make($request->all(), [
             'customer_name' => 'required|string|max:255',
             'phone_number' => 'required|string|max:255',
-            'cash_receive' => 'required|numeric',
-            'balance_amount' => 'required|numeric',
+            'cash_receive' => 'required|string',
+            'balance_amount' => 'required|string',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -173,26 +177,33 @@ class InvoiceController extends Controller
     }
 
     public function find_customer_name(Request $request)
-    {
-        $condition = '';
-        $fieldList = 'user_id,customer_name';
+{
+    $condition = '';
+    $fieldList = 'user_id,customer_name';
 
-        if ($request->has('user_id') || $request->has('customer_name')) {
-            $condition = 'where user_id like "%' . $request->input('user_id') . '%' .
-                ' && customer_name like "%' . $request->input('customer_name') . '%"';
-            $fieldList = '*';
-        }
-
-        $invoices = DB::select('select ' . $fieldList . ' from invoice ' . $condition);
-
-        $response = [
-            'success' => true,
-            'total' => count($invoices),
-            'data' => $invoices,
-        ];
-
-        return response()->json($response);
+    if ($request->has('user_id') || $request->has('customer_name')) {
+        $condition = 'where user_id like "%' . $request->input('user_id') . '%' .
+            ' && customer_name like "%' . $request->input('customer_name') . '%"';
+        $fieldList = '*';
     }
+
+    // Add the following code to show invoices for a particular customer name
+    if ($request->has('customer_name')) {
+        $customerName = $request->input('customer_name');
+        $invoices = DB::select('select ' . $fieldList . ' from invoice where customer_name = "' . $customerName . '"');
+    } else {
+        $invoices = DB::select('select ' . $fieldList . ' from invoice ' . $condition);
+    }
+
+    $response = [
+        'success' => true,
+        'total' => count($invoices),
+        'data' => $invoices,
+    ];
+
+    return response()->json($response);
+}
+
 
 
     public function find_week_dates(Request $request)
@@ -224,14 +235,15 @@ class InvoiceController extends Controller
     {
         $user_id = $request->user()->id;
         $id = $request->input('id');
+        $summary_date = $request->input('summary_date');
 
         $condition = null;
-        $fieldList = ["summary_date"];
+        $fieldList = ["summary_date", "total_amount"];
 
         if (!empty($user_id) && !empty($id)) {
-            $condition = " where id='$id' AND user_id='$user_id'";
+            $condition = " where id='$id' AND user_id='$user_id' AND summary_date ='$summary_date'";
         } elseif (!empty($user_id)) {
-            $condition = " where user_id='$user_id'";
+            $condition = " where user_id='$user_id' AND summary_date ='$summary_date'";
         } elseif (!empty($id)) {
             $condition = " where id='$id'";
         } else {
@@ -246,16 +258,69 @@ class InvoiceController extends Controller
             return response()->json(["success" => false, "error" => "No records found"]);
         }
 
-        $response = ["success" => true, "total" => $count, "summary_dates" => []];
+        $response = ["success" => true, "user_data" => []];
+
+        $summary_date_total = [];
 
         foreach ($result as $row) {
-            $response["summary_dates"][] = $row->summary_date;
+            $summary_date = $row->summary_date;
+
+            if (!isset($summary_date_total[$summary_date])) {
+                $summary_date_total[$summary_date] = 0;
+            }
+
+            $summary_date_total[$summary_date] += $row->total_amount;
+        }
+
+        foreach ($summary_date_total as $summary_date => $total_amount) {
+            $response["user_data"] = [
+                "summary_date" => $summary_date,
+                "total_amount" => $total_amount,
+            ];
         }
 
         return response()->json($response);
     }
 
 
+public function show_week_invoice(Request $request)
+{
+    $user_id = $request->user()->id;
+    $id = $request->input('id');
+    $summary_date = $request->input('summary_date');
+
+    $condition = null;
+    $fieldList = ["id", "invoice_date", "customer_name", "final_id", "total_amount", "summary_date"];
+
+    if (!empty($user_id) && !empty($id)) {
+        $condition = " where id='$id' AND user_id='$user_id' AND summary_date ='$summary_date'";
+    } elseif (!empty($user_id)) {
+        $condition = " where user_id='$user_id' AND summary_date ='$summary_date'";
+    } elseif (!empty($id)) {
+        $condition = " where id='$id'";
+    } else {
+        return response()->json(["success" => false, "error" => "Please provide either user_id or id"]);
+    }
+
+    $result = DB::select("select " . implode(',', $fieldList) . " from invoice " . $condition);
+
+    $count = count($result);
+
+    $response = ["success" => true,"total" => $count,"data" => [] ];
+
+    foreach ($result as $row) {
+        $response["data"][] = [
+            "id" => $row->id,
+            "invoice_date" => $row->invoice_date,
+            "customer_name" => $row->customer_name,
+            "final_id" => $row->final_id,
+            "total_amount" => $row->total_amount,
+            "summary_date" => $row->summary_date,
+        ];
+    }
+
+    return response()->json($response);
+}
 
     public function to_collect_amount(Request $request)
     {
@@ -277,20 +342,14 @@ class InvoiceController extends Controller
 
             $count = count($result);
 
-            if ($count === 0) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'No records found',
-                ], 404);
-            }
-            $response[] = ['success' => true];
-            $response[] = ['total' => $count];
+            // Remove the array type from the user_data response
+            $user_data = array_pop($result);
 
-            foreach ($result as $row) {
-                $response[] = $row;
-            }
-
-
+            $response = [
+                'success' => true,
+                'total' => $count,
+                'user_data' => $user_data,
+            ];
 
             return response()->json($response);
         } catch (\Exception $e) {
@@ -300,6 +359,7 @@ class InvoiceController extends Controller
             ], 500);
         }
     }
+
 
 
     public function to_collect_amunt_details(Request $request)
@@ -312,30 +372,26 @@ class InvoiceController extends Controller
             $FieldList = "*";
         }
 
-        $response = [];
+        $response = [
+            'success' => true,
+        ];
 
         try {
             $sql = "select $FieldList from invoice $condition";
             $result = DB::select($sql);
             $count = count($result);
-            $response[] = ['success' => true, ];
-            $response[] = ["total" => $count];
 
-            if ($count > 0) {
+            $response['total'] = $count;
+            $response['data'] = $result;
 
-                foreach ($result as $row) {
-                    $response[] = $row;
-                }
-
-                return response()->json($response);
-            } else {
-                return response()->json(['success' => false, 'error' => 'No records found'], 404);
-            }
+            return response()->json($response);
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
-
 
     public function transaction_balance_amt(Request $request)
     {
@@ -429,13 +485,13 @@ class InvoiceController extends Controller
 
 
 
-    public function view_bill(Request $request)
+public function view_bill(Request $request)
     {
         $response = [];
 
         $user_id = $request->user()->id;
         $condition = null;
-        $fieldList = "id, item_id, customer_name, total_amount, due_date, invoice_date, balance_amount, cash_receive";
+        $fieldList = "id,final_id, item_id, customer_name, total_amount, due_date, invoice_date, balance_amount, cash_receive,summary_date";
 
         if ($user_id) {
             $condition = " where user_id = ?";
@@ -445,9 +501,19 @@ class InvoiceController extends Controller
         $invoices = DB::select("select $fieldList from invoice $condition", [$user_id]);
 
         if (count($invoices) > 0) {
+            // Get the user model from the request
+            $user = $request->user();
+
+            // Get the business name and business logo from the user model
+            $businessName = $user->business_name;
+            $businessLogo = $user->business_logo;
+
+
             return response()->json([
                 'success' => true,
                 'total' => count($invoices),
+                'business_name' => $businessName,
+                'business_logo' => $businessLogo,
                 'data' => $invoices,
             ]);
         } else {
@@ -457,40 +523,80 @@ class InvoiceController extends Controller
             ], 404);
         }
     }
+    
+    
+   public function view_bill_balance_amount(Request $request)
+{
+     $response = [];
 
-    public function view_invoice_details(Request $request)
-    {
-        $response = [];
+    $user_id = $request->user()->id;
+    $condition = null;
+    $fieldList = "id,final_id, item_id, customer_name, total_amount, due_date, invoice_date, balance_amount, cash_receive,summary_date";
 
-        $id = $request->input('id');
-        $customerName = $request->input('customer_name');
-
-        $fieldList = "id, customer_name, invoice_date, due_date, billing_address, gst_number, state, total_item, sub_total, additional_charge_name, additional_charge, discount, round_off, phone_number, total_amount, balance_amount, cash_receive";
-
-        $query = DB::table('invoice');
-
-        if (!empty($id) && !empty($customerName)) {
-            $query->where('id', $id)->where('customer_name', 'like', "%$customerName%");
-        } elseif (!empty($id)) {
-            $query->where('id', $id);
-            $fieldList = "*";
-        } elseif (!empty($customerName)) {
-            $query->where('customer_name', 'like', "%$customerName%");
-        }
-
-        $invoices = $query->selectRaw($fieldList)->get();
-
-        if ($invoices->count() > 0) {
-            return response()->json([
-                'success' => true,
-                'total' => $invoices->count(),
-                'data' => $invoices,
-            ]);
-        } else {
-            return response()->json([
-                'success' => false,
-                'message' => 'No invoices found for the specified criteria.',
-            ], 404);
-        }
+    if ($user_id) {
+        $condition = " where balance_amount >0 and user_id = {$user_id}";
     }
+
+    // Fetch invoice data
+    $invoices = DB::select("select $fieldList from invoice $condition");
+
+    if (count($invoices) > 0) {
+        return response()->json([
+            'success' => true,
+            'total' => count($invoices),
+            'data' => $invoices,
+        ]);
+    } else {
+        return response()->json([
+            'success' => false,
+            'message' => 'No invoices found for the specified user.',
+        ], 404);
+    }
+}
+
+
+public function view_invoice_details(Request $request)
+{
+    $response = [];
+
+    $id = $request->input('id');
+    $customerName = $request->input('customer_name');
+
+    $fieldList = "id, customer_name, invoice_date, due_date, billing_address, gst_number, state, total_item, sub_total, additional_charge_name, additional_charge, discount, round_off, phone_number, total_amount, balance_amount, cash_receive";
+
+    $query = DB::table('invoice');
+
+    if (!empty($id) && !empty($customerName)) {
+        $query->where('id', $id)->where('customer_name', 'like', "%$customerName%");
+    } elseif (!empty($id)) {
+        $query->where('id', $id);
+        $fieldList = "*";
+    } elseif (!empty($customerName)) {
+        $query->where('customer_name', 'like', "%$customerName%");
+    }
+
+    $invoices = collect($query->selectRaw($fieldList)->get());
+
+    if ($invoices->count() > 0) {
+        $invoicesObject = new stdClass();
+        foreach ($invoices as $invoice) {
+            foreach ($invoice as $key => $value) {
+                $invoicesObject->{$key} = $value;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'total' => $invoices->count(),
+            'user_data' => $invoicesObject,
+        ]);
+    } else {
+        return response()->json([
+            'success' => false,
+            'message' => 'No invoices found for the specified criteria.',
+        ], 404);
+    }
+}
+
+
 }
